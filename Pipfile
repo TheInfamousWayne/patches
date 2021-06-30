@@ -9,6 +9,8 @@ torch = "*"
 torchvision = "*"
 torchaudio = "*"
 scipy = "*"
+seaborn = "*"
+ipdb = "*"
 
 [dev-packages]
 

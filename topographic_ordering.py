@@ -11,7 +11,8 @@ import torchvision.datasets as datasets
 #import model zoo in torchvision
 import torchvision.models as models
 import torchvision.transforms as transforms
-import analyze_patches as pa 
+import analyze_patches as pa
+from pathlib import Path
 
 import os
 
@@ -20,21 +21,28 @@ import os
 class Struct:
 	def __init__(self, **entries):
 		self.__dict__.update(entries)
-args = {'dataset':'imagenet32',
+
+if torch.cuda.is_available():
+    device = 'cuda'
+    n_gpus = torch.cuda.device_count()
+else:
+    device = 'cpu'
+
+args = {'dataset':'DTD',
 		'no_padding':False,
-		'batchsize':128,
+		'batchsize':32,
 		'num_workers':4,
 		'padding_mode':'constant',
-		'path_train': '/nfs/gatsbystor/michaela/projects/data/imagenet/imagenet32/out_data_train/',
+		'path_train': str(Path(os.getenv('PATH_TRAIN'))),
 		'path_test': '/nfs/gatsbystor/michaela/projects/data/imagenet/imagenet32/out_data_val/',
-		'path_save':'/nfs/gatsbystor/michaela/projects/nondeep/data/',
+		'path_save':str(Path(os.getenv('SAVE_DIR'))),
 		'whitening_reg':0.001,
 		'K_nn':3,
 		'numpy_seed':0,
-		'n_channel_convolution':32000,
+		'n_channel_convolution':256,
 		'K_min':10,
 		'normalize':True,
-		'device':'cuda',
+		'device':device,
 		'with_patches':False,
 		'M':10,
 		'min_divisor':1e-8,
@@ -44,7 +52,7 @@ args = {'dataset':'imagenet32',
 args = Struct(**args)
 
 patch_sizes = [20,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19]
-patch_sizes = [6]
+patch_sizes = [4]
 
 whitening_regs = np.array([0.00001,0.0001,0.001,0.01,0.1,1.,10.])
 
@@ -71,7 +79,7 @@ for patch_size in patch_sizes:
 		patches = patches / patch_norm.unsqueeze(-1)
 
 
-	patches = patches.reshape(patches.size(0), 3, patch_size,patch_size)
+	patches = patches.reshape(patches.size(0), 1, patch_size,patch_size)
 	patches = patches.cpu().numpy()
 	
 

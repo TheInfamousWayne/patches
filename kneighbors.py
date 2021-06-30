@@ -21,6 +21,8 @@ import torch.optim as optim
 from imagenet import Imagenet32
 import utils
 
+from pathlib import Path
+
 
 print('kneighbors.py')
 parser = argparse.ArgumentParser('linear classification using patches k nearest neighbors indicators for euclidian metric')
@@ -35,6 +37,7 @@ parser.add_argument('--padding_mode', default='constant', choices=['constant', '
 parser.add_argument('--whitening_reg', default=0.001, type=float, help='regularization bias for zca whitening, negative values means no whitening')
 parser.add_argument('--gaussian_patches', action='store_true', help='patches sampled for gaussian RV')
 parser.add_argument('--learn_patches', action='store_true', help='learn the patches by SGD')
+parser.add_argument('--input_channels', default=1, type=int, help='number of channels in the input image')
 
 # parameters for the second layer of patches
 parser.add_argument('--n_channel_convolution_2', default=0, type=int)
@@ -80,7 +83,7 @@ parser.add_argument('--sgd_momentum', type=float, default=0.)
 parser.add_argument('--weight_decay', type=float, default=0.)
 
 # hardware parameters
-parser.add_argument('--path_train', help="path to imagenet", default=Path(os.getenv('PATH_TRAIN')))
+parser.add_argument('--path_train', help="path to imagenet", default=str(Path(os.getenv('PATH_TRAIN'))))
 parser.add_argument('--path_test', help="path to imagenet", default='/d1/dataset/imagenet32/out_data_val')
 parser.add_argument('--path', help="path to imagenet", default='/d1/dataset/2012')
 parser.add_argument('--num_workers', type=int, default=2)
@@ -94,7 +97,7 @@ parser.add_argument('--torch_seed', type=int, default=0)
 parser.add_argument('--save_model', action='store_true', help='saves the model')
 parser.add_argument('--save_best_model', action='store_true', help='saves the best model')
 parser.add_argument('--resume', default='', help='filepath of checkpoint to load the model')
-parser.add_argument('--summary_file', default=Path(os.getenv('SUMMARY_FILE')), help='file to write summary')
+parser.add_argument('--summary_file', default=str(Path(os.getenv('SUMMARY_FILE'))), help='file to write summary')
 
 args = parser.parse_args()
 
@@ -114,6 +117,7 @@ spatialsize_convolution = args.spatialsize_convolution
 stride_avg_pooling = args.stride_avg_pooling
 spatialsize_avg_pooling = args.spatialsize_avg_pooling
 finalsize_avg_pooling = args.finalsize_avg_pooling
+n_gpus = 1
 if torch.cuda.is_available():
     device = 'cuda'
     n_gpus = torch.cuda.device_count()
@@ -492,7 +496,7 @@ net = Net(kernel_convolution, bias_convolution, spatialsize_avg_pooling,
           k_neighbors=k_neighbors, sigmoid=args.sigmoid).to(device)
 
 
-x = torch.rand(1, 3, spatial_size, spatial_size).to(device)
+x = torch.rand(1, args.input_channels, spatial_size, spatial_size).to(device)
 if torch.cuda.is_available() and not args.learn_patches:
     x = x.half()
 
@@ -708,7 +712,7 @@ def test(epoch, loader=testloader, msg='Test'):
             outputs_list.append(outputs)
 
             test_loss += loss.item()
-            cor_top1, cor_top5 = utils.correct_topk(outputs, targets, topk=(1, 5))
+            cor_top1, cor_top5 = utils.correct_topk(outputs, targets, topk=(1, 3))
             correct_top1 += cor_top1
             correct_top5 += cor_top5
             _, predicted = outputs.max(1)

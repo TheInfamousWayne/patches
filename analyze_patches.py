@@ -4,12 +4,14 @@ import numpy as np
 import torch 
 import torch.nn as nn
 import torchvision
+import ipdb
 #import datasets in torchvision
 import torchvision.datasets as datasets
 
 #import model zoo in torchvision
 import torchvision.models as models
 import torchvision.transforms as transforms
+from dtd import Dataloder, DTDDataloader
 
 from utils import *
 from torchvision.datasets import CIFAR10
@@ -126,6 +128,14 @@ def load_data(args):
             num_workers=args.num_workers, pin_memory=True)
         n_classes = 1000
 
+    elif args.dataset == 'DTD':
+        spatial_size = 20
+        classes, trainset, testset, trainloader, testloader, trainloader_norandom = Dataloder(args.path_train,
+                                                                                              spatial_size=spatial_size,
+                                                                                              batchsize=args.batchsize).getloader()
+        n_classes = len(classes)
+
+    # whitening op
     if args.dataset == 'cifar10':
         trainset_whitening = CIFAR10(root='./data', train=True, download=True, transform=transforms.ToTensor())
         trainloader_whitening = torch.utils.data.DataLoader(trainset_whitening, batch_size=args.batchsize, shuffle=False, num_workers=args.num_workers)
@@ -134,6 +144,10 @@ def load_data(args):
         trainloader_whitening = torch.utils.data.DataLoader(
         trainset_whitening, batch_size=args.batchsize, shuffle=False,
         num_workers=args.num_workers, pin_memory=True)
+    elif args.dataset == 'DTD':
+        trainset_whitening = None
+        trainloader_whitening = trainloader_norandom
+        stride = 1
 
 
     return trainset, testset, trainset_whitening, trainloader, testloader, trainloader_whitening
@@ -183,8 +197,8 @@ def intrinsic_dim(K_nn_dist, K_min, device='cuda' ):
     dim =   2./(Z)
     return dim
 
-def build_network(trainloader_whitening, dataset,  n_channel_convolution,spatialsize_convolution, whitening_reg,normalize, numpy_seed, device='cuda', with_patches=True, net_type = 'Net', space_basis = False):
-    if dataset =='cifar10':
+def build_network(trainloader_whitening, dataset,  n_channel_convolution,spatialsize_convolution, whitening_reg,normalize, numpy_seed, device=device, with_patches=True, net_type = 'Net', space_basis = False):
+    if dataset =='cifar10' or dataset == 'DTD':
         stride = 1
     else:
         stride = 2
@@ -380,7 +394,7 @@ def compute_K_nn_patches(trainloader, net, K_nn, device, seed=0, b_size = 512):
     for m ,patch in enumerate(patches):
         b = patch.size(0)
         patch_index = 1*ind_patches[M:M+b]
-        patch = patch.reshape(b,3,patch_size,patch_size)
+        patch = patch.reshape(b,1,patch_size,patch_size)
         M += b
         dist = net(patch)
         if K_nn_dist is None:

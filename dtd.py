@@ -5,6 +5,8 @@ import torch
 import torch.utils.data as data
 from PIL import Image
 from torchvision import transforms
+import ipdb
+import numpy as np
 
 SPLIT = ''
 
@@ -46,6 +48,7 @@ class DTDDataloader(data.Dataset):
 
         self.images, self.labels = make_dataset(filename, path, class_to_idx)
         assert (len(self.images) == len(self.labels))
+        self.data = self.load_data()
 
     def __getitem__(self, index):
         _img = Image.open(self.images[index])
@@ -58,6 +61,12 @@ class DTDDataloader(data.Dataset):
     def __len__(self):
         return len(self.images)
 
+    def load_data(self):
+        data = []
+        for img in self.images:
+            data.append(np.asarray(Image.open(img)).reshape(1,20,20,1))  # number of images, H, W, C
+
+        return np.concatenate(data, axis=0)
 
 class Dataloder():
     def __init__(self, path, spatial_size, batchsize):
