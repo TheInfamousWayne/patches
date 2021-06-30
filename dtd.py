@@ -6,7 +6,7 @@ import torch.utils.data as data
 from PIL import Image
 from torchvision import transforms
 
-SPLIT = '1'
+SPLIT = ''
 
 
 def find_classes(dir):
@@ -40,8 +40,7 @@ class DTDDataloader(data.Dataset):
         self.transform = transform
 
         if train:
-            filename = [os.path.join(path, 'labels/train' + SPLIT + '.txt'),
-                        os.path.join(path, 'labels/val' + SPLIT + '.txt')]
+            filename = [os.path.join(path, 'labels/train' + SPLIT + '.txt')]
         else:
             filename = [os.path.join(path, 'labels/test' + SPLIT + '.txt')]
 
@@ -49,7 +48,7 @@ class DTDDataloader(data.Dataset):
         assert (len(self.images) == len(self.labels))
 
     def __getitem__(self, index):
-        _img = Image.open(self.images[index]).convert('RGB')
+        _img = Image.open(self.images[index])
         _label = self.labels[index]
         if self.transform is not None:
             _img = self.transform(_img)
@@ -62,8 +61,8 @@ class DTDDataloader(data.Dataset):
 
 class Dataloder():
     def __init__(self, path, spatial_size, batchsize):
-        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                         std=[0.229, 0.224, 0.225])
+        normalize = transforms.Normalize(mean=[0.486],
+                                         std=[0.229])
 
         transform_train_norandom = transforms.Compose([
             transforms.Resize(9*spatial_size//8),

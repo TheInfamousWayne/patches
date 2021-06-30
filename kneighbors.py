@@ -29,8 +29,8 @@ parser = argparse.ArgumentParser('linear classification using patches k nearest 
 parser.add_argument('--dataset', help="cifar10/?", default='cifar10')
 parser.add_argument('--no_padding', action='store_true', help='no padding used')
 parser.add_argument('--patches_file', help=".t7 file containing patches", default='')
-parser.add_argument('--n_channel_convolution', default=256, type=int)
-parser.add_argument('--spatialsize_convolution', default=6, type=int)
+parser.add_argument('--n_channel_convolution', default=128, type=int)  # number of patches (or filters)
+parser.add_argument('--spatialsize_convolution', default=4, type=int)  # filter dimension
 parser.add_argument('--padding_mode', default='constant', choices=['constant', 'reflect', 'symmetric'], help='type of padding for torch RandomCrop')
 parser.add_argument('--whitening_reg', default=0.001, type=float, help='regularization bias for zca whitening, negative values means no whitening')
 parser.add_argument('--gaussian_patches', action='store_true', help='patches sampled for gaussian RV')
@@ -47,7 +47,7 @@ parser.add_argument('--sigmoid_2', default=0., type=float)
 # parameters for the extraction
 parser.add_argument('--stride_convolution', default=1, type=int)
 parser.add_argument('--stride_avg_pooling', default=2, type=int)
-parser.add_argument('--spatialsize_avg_pooling', default=5, type=int)
+parser.add_argument('--spatialsize_avg_pooling', default=3, type=int)
 parser.add_argument('--kneighbors', default=0, type=int)
 parser.add_argument('--kneighbors_fraction', default=0.25, type=float)
 parser.add_argument('--finalsize_avg_pooling', default=0, type=int)
@@ -71,16 +71,16 @@ parser.add_argument('--resnet', action='store_true', help='resnet classifier')
 
 
 # parameters of the optimizer
-parser.add_argument('--batchsize', type=int, default=512)
+parser.add_argument('--batchsize', type=int, default=32)
 parser.add_argument('--batchsize_net', type=int, default=0)
 parser.add_argument('--lr_schedule', type=str, default='{0:1e-3, 1:1e-4}')
-parser.add_argument('--nepochs', type=int, default=90)
+parser.add_argument('--nepochs', type=int, default=50)
 parser.add_argument('--optimizer', choices=['Adam', 'SGD'], default='Adam')
 parser.add_argument('--sgd_momentum', type=float, default=0.)
 parser.add_argument('--weight_decay', type=float, default=0.)
 
 # hardware parameters
-parser.add_argument('--path_train', help="path to imagenet", default='/d1/dataset/imagenet32/out_data_train')
+parser.add_argument('--path_train', help="path to imagenet", default=Path(os.getenv('PATH_TRAIN')))
 parser.add_argument('--path_test', help="path to imagenet", default='/d1/dataset/imagenet32/out_data_val')
 parser.add_argument('--path', help="path to imagenet", default='/d1/dataset/2012')
 parser.add_argument('--num_workers', type=int, default=2)
@@ -94,7 +94,7 @@ parser.add_argument('--torch_seed', type=int, default=0)
 parser.add_argument('--save_model', action='store_true', help='saves the model')
 parser.add_argument('--save_best_model', action='store_true', help='saves the best model')
 parser.add_argument('--resume', default='', help='filepath of checkpoint to load the model')
-parser.add_argument('--summary_file', default='', help='file to write summary')
+parser.add_argument('--summary_file', default=Path(os.getenv('SUMMARY_FILE')), help='file to write summary')
 
 args = parser.parse_args()
 
@@ -223,7 +223,7 @@ elif args.dataset in ['imagenet']:
         num_workers=args.num_workers, pin_memory=True)
     n_classes = 1000
 elif args.dataset == 'DTD':
-    spatial_size = 64
+    spatial_size = 20
     classes, trainset, testset, trainloader, testloader, trainloader_norandom = Dataloder(args.path_train, spatial_size=spatial_size, batchsize=args.batchsize).getloader()
     n_classes = len(classes)
 
