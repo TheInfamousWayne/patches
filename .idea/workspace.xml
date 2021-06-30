@@ -2,9 +2,7 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="ce424d24-7f25-4753-b5f5-df53219246f7" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/.env" beforeDir="false" afterPath="$PROJECT_DIR$/.env" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/dtd.py" beforeDir="false" afterPath="$PROJECT_DIR$/dtd.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/kneighbors.py" beforeDir="false" afterPath="$PROJECT_DIR$/kneighbors.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -47,7 +45,7 @@
       <workItem from="1624988357592" duration="3200000" />
       <workItem from="1625066087115" duration="484000" />
       <workItem from="1625081716242" duration="2025000" />
-      <workItem from="1625086254566" duration="2163000" />
+      <workItem from="1625086254566" duration="2703000" />
     </task>
     <servers />
   </component>
