@@ -28,31 +28,32 @@ if torch.cuda.is_available():
 else:
     device = 'cpu'
 
-args = {'dataset':'DTD',
+args = {'dataset':'cifar10',
 		'no_padding':False,
 		'batchsize':32,
 		'num_workers':4,
 		'padding_mode':'constant',
 		'path_train': str(Path(os.getenv('PATH_TRAIN'))),
-		'path_test': '/nfs/gatsbystor/michaela/projects/data/imagenet/imagenet32/out_data_val/',
+		'path_test': str(Path(os.getenv('PATH_TRAIN'))),
 		'path_save':str(Path(os.getenv('SAVE_DIR'))),
 		'whitening_reg':0.001,
-		'K_nn':3,
+		'K_nn':100,
 		'numpy_seed':0,
 		'n_channel_convolution':256,
-		'K_min':10,
+		'K_min':3,
 		'normalize':True,
 		'device':device,
 		'with_patches':False,
 		'M':10,
 		'min_divisor':1e-8,
 		'space_basis':True,
-		're_whiten':False
+		're_whiten':False,
+		'n_image_channels': 3,
 	   }
 args = Struct(**args)
 
 patch_sizes = [20,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19]
-patch_sizes = [4]
+patch_sizes = [2,3,4,5,6,7,8,9,10]
 
 whitening_regs = np.array([0.00001,0.0001,0.001,0.01,0.1,1.,10.])
 
@@ -60,9 +61,9 @@ whitening_regs = np.array([0.00001,0.0001,0.001,0.01,0.1,1.,10.])
 trainset, testset, trainset_whitening, trainloader, testloader, trainloader_whitening = pa.load_data(args)
 for patch_size in patch_sizes:
 	print(f'Computing K_nn for patch size {patch_size}')
-	net,whitening_eigvals, old_patches,whitening_eigvecs = pa.build_network(trainloader_whitening, args.dataset, args.n_channel_convolution, patch_size , args.whitening_reg, args.normalize, args.numpy_seed,net_type = 'spatialNet', space_basis=args.space_basis)
-	K_nn_dist, K_nns = pa.compute_K_nn_patches(trainloader_whitening,net,args.K_nn, args.device, b_size = args.batchsize)
-	k_nn_file = args.path_save + 'patches_k_nns_'+str(args.dataset)+'_whitening_reg_'+ str(args.whitening_reg)+'_patchsize_'+str(patch_size)+'.npz'
+	net,whitening_eigvals, old_patches,whitening_eigvecs = pa.build_network(trainloader_whitening, args.dataset, args.n_channel_convolution, patch_size , args.whitening_reg, args.normalize, args.numpy_seed,net_type = 'spatialNet', space_basis=args.space_basis, image_channels=args.n_image_channels)
+	K_nn_dist, K_nns = pa.compute_K_nn_patches(trainloader_whitening,net,args.K_nn, args.device, b_size = args.batchsize, image_channels=args.n_image_channels)
+	k_nn_file = os.path.join(args.path_save , 'patches_k_nns_'+str(args.dataset)+'_whitening_reg_'+ str(args.whitening_reg)+'_patchsize_'+str(patch_size)+'.npz')
 	patches = net.conv_weight
 	indicies = pa.compute_topological_order(0,K_nns,args.M)
 	K_nn_dist = K_nn_dist.cpu().numpy()
@@ -79,7 +80,7 @@ for patch_size in patch_sizes:
 		patches = patches / patch_norm.unsqueeze(-1)
 
 
-	patches = patches.reshape(patches.size(0), 1, patch_size,patch_size)
+	patches = patches.reshape(patches.size(0), args.n_image_channels, patch_size,patch_size)
 	patches = patches.cpu().numpy()
 	
 

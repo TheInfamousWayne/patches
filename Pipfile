@@ -11,6 +11,8 @@ torchaudio = "*"
 scipy = "*"
 seaborn = "*"
 ipdb = "*"
+jupyter = "*"
+python-dotenv = "*"
 
 [dev-packages]
 

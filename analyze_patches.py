@@ -183,7 +183,11 @@ def compute_K_nn(trainloader, net, K_nn, device, seed=0, with_patches=True):
 
 def intrinsic_dim(K_nn_dist, K_min, device='cuda' ):
     K_nn_dist = K_nn_dist.double()
-    num_centers, K_nn = K_nn_dist.shape
+    if device == 'cuda':
+        num_centers, K_nn = K_nn_dist.shape
+    else:
+        K_nn_dist = K_nn_dist.transpose(1,0)
+        num_centers, K_nn = K_nn_dist.shape[:2]
     counts = torch.range(K_min,K_nn-2).to(device)
     K_nn_dist = K_nn_dist[:,1:]
     mask = torch.sum((K_nn_dist==0), dim=1)==0
@@ -197,7 +201,7 @@ def intrinsic_dim(K_nn_dist, K_min, device='cuda' ):
     dim =   2./(Z)
     return dim
 
-def build_network(trainloader_whitening, dataset,  n_channel_convolution,spatialsize_convolution, whitening_reg,normalize, numpy_seed, device=device, with_patches=True, net_type = 'Net', space_basis = False):
+def build_network(trainloader_whitening, dataset,  n_channel_convolution,spatialsize_convolution, whitening_reg,normalize, numpy_seed, device=device, with_patches=True, net_type = 'Net', space_basis = False, image_channels=1):
     if dataset =='cifar10' or dataset == 'DTD':
         stride = 1
     else:
@@ -216,7 +220,7 @@ def build_network(trainloader_whitening, dataset,  n_channel_convolution,spatial
     else:
         whitening_op = np.eye(whitening_eigvals.size, dtype='float32')
 
-    patches = select_patches_randomly(all_images, patch_size=spatialsize_convolution, n_patches=n_channel_convolution, seed=numpy_seed)
+    patches = select_patches_randomly(all_images, patch_size=spatialsize_convolution, n_patches=n_channel_convolution, seed=numpy_seed, image_channels=image_channels)
     #patches = all_images[:n_channel_convolution,:spatialsize_convolution,:spatialsize_convolution,:].transpose(0,3,1,2)
     patches = patches.astype('float64')
     patches /= 255.0
@@ -377,7 +381,7 @@ class spatialNet(nn.Module):
         return dist
 
 
-def compute_K_nn_patches(trainloader, net, K_nn, device, seed=0, b_size = 512):
+def compute_K_nn_patches(trainloader, net, K_nn, device, seed=0, b_size = 512, image_channels=1):
     num_centers, n_channels = net.conv_weight.shape[0], net.conv_weight.shape[1]
     K_nn = min(num_centers, K_nn)
     N = 0
@@ -394,7 +398,7 @@ def compute_K_nn_patches(trainloader, net, K_nn, device, seed=0, b_size = 512):
     for m ,patch in enumerate(patches):
         b = patch.size(0)
         patch_index = 1*ind_patches[M:M+b]
-        patch = patch.reshape(b,1,patch_size,patch_size)
+        patch = patch.reshape(b,image_channels,patch_size,patch_size)
         M += b
         dist = net(patch)
         if K_nn_dist is None:
