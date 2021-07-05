@@ -12,21 +12,36 @@ else:
     device = 'cpu'
 
 
-def select_patches_from_loader(loader, batchsize, patch_size, n_patches, n_images, n_patches_per_rowcol, func=None, seed=0, stride=1):
+def select_patches_from_loader(loader, batchsize, patch_size, n_patches, n_images, n_patches_per_rowcol, image_channels=1, func=None, seed=0, stride=1):
+    """
+    Returns a randomly selected subset of patches of size (n_patches, image_channels, patch_size, patch_size)
+
+    loader=trainloader,
+    batchsize=args.batchsize,
+    patch_size= the filter dimension, (4 --> 4x4 convolution)
+    n_patches=n_channel_convolution, (total number of filters)
+    n_images=n_images_trainset, (number of images in the dataset)
+    n_patches_per_rowcol=n_patches_per_rowcol, (number of sliding patches along a row)
+    func=None, seed=args.numpy_seed, stride=1
+    """
     np.random.seed(seed)
     n_patches_per_image = n_patches_per_rowcol**2
     n_patches_total = n_images * n_patches_per_image
 
+    # selecting a subset of random patches from all patches.
+    # #All_patches = #Images * #n_patches_per_image
     patch_ids = np.random.choice(n_patches_total, size=n_patches, replace=True)
     unique_patch_ids = np.unique(patch_ids)
     while len(unique_patch_ids) < len(patch_ids):
         unique_patch_ids = np.unique(np.concatenate([unique_patch_ids, np.random.choice(n_patches_total, size=n_patches, replace=True)]))
     patch_ids = unique_patch_ids[:len(patch_ids)]
 
+    # TODO: replace the above with --> patch_ids = np.random.choice(n_patches_total, size=n_patches, replace=False)
+
 
     patch_img_batch_ids = (patch_ids % n_images) // batchsize
 
-    selected_patches = torch.DoubleTensor(n_patches, 1, patch_size, patch_size).fill_(0)
+    selected_patches = torch.DoubleTensor(n_patches, image_channels, patch_size, patch_size).fill_(0)
 
     for batch_idx, (inputs, _) in enumerate(loader):
         if batch_idx not in patch_img_batch_ids:
@@ -88,6 +103,23 @@ def correct_topk(output, target, topk=(1,)):
 
 
 def compute_whitening_from_loader(loader, patch_size, seed=0, stride=1, func=None):
+    """
+    ##################################################################
+    ##################### Computing Whitening ########################
+    ##################################################################
+
+    This part saves the mean and covariance of the whitening operator. the mean and covariance is calculated over the whole dataset.
+    We extract patches from all the images of the dataset to calculate the mean and cov.
+    Cov matrix is saved in its diagonalised form, i.e. the eigen values and the eigen vectors.
+
+    All returned objects are numpy arrays.
+
+    NOTE: This just saves the mean and sigma matrix. The lambda hyperparameter of whitening is not used/modified/calculated here.
+
+    Reference: https://en.wikipedia.org/wiki/Diagonalizable_matrix#Diagonalization
+
+    """
+
     mean, covariance = None, None
 
     # compute the mean
@@ -97,7 +129,7 @@ def compute_whitening_from_loader(loader, patch_size, seed=0, stride=1, func=Non
         inputs, _ = inputs.to(device), _.to(device)
         if func is not None:
             inputs = func(inputs)
-        patches = F.unfold(inputs, patch_size, stride=stride).transpose(0, 1).contiguous()
+        patches = F.unfold(inputs, patch_size, stride=stride).transpose(0, 1).contiguous()  # extracting patches from the whole image
         patches = patches.view(patches.size(0), -1)
         n = inputs.size(0)
         batch_mean = patches.mean(dim=1, keepdims=True).double()
