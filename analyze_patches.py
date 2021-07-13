@@ -31,20 +31,20 @@ def pca_patches(trainset,trainloader_whitening,patch_size,whitening_reg):
     whitened_eigvals = eigvals*np.power(eigvals + whitening_reg, -1./2)
 
 
-
 def eigvals_patches(trainloader_whitening,patch_sizes,whitening_regs):
     whitening_regs = torch.from_numpy(whitening_regs).unsqueeze(0)
     all_whitened_eigvals= []
+    # ipdb.set_trace()
     for patch_size in patch_sizes:
         (mean, eigvecs, eigvals) = compute_whitening_from_loader(trainloader_whitening, patch_size)
-        eigvals = 1.*eigvals[::-1]
+        eigvals = 1.*eigvals[::-1]  # sort in descending order
         eigvals = torch.from_numpy(eigvals)
         whitening = torch.pow(eigvals.unsqueeze(1)+ whitening_regs, -1)
         whitening_2 = torch.pow(eigvals.unsqueeze(1)+ whitening_regs, -2)
-        whitened_eigvals = torch.einsum( 'i,ik->ik', eigvals,whitening)
-        whitened_eigvals_2 = torch.einsum( 'i,ik->ik', eigvals,whitening_2)
-        whitened_eigvals = torch.cat([eigvals.unsqueeze(1), whitened_eigvals,whitened_eigvals_2], dim=1)
-        whitened_eigvals = torch.einsum('ij,j->ij',whitened_eigvals,1./whitened_eigvals[0,:])
+        whitened_eigvals = torch.einsum( 'i,ik->ik', eigvals,whitening)   # (4,7)
+        whitened_eigvals_2 = torch.einsum( 'i,ik->ik', eigvals,whitening_2)  # (4,7)
+        whitened_eigvals = torch.cat([eigvals.unsqueeze(1), whitened_eigvals,whitened_eigvals_2], dim=1)  # (4,1), (4,7), (4,7) -> (4, 15)
+        whitened_eigvals = torch.einsum('ij,j->ij',whitened_eigvals,1./whitened_eigvals[0,:])  # normalising by $lambda_1
         all_whitened_eigvals.append(whitened_eigvals)
         print(f'eingenvalues for patch size {patch_size}')
     #all_whitened_eigvals = torch.stack(all_whitened_eigvals)
@@ -325,9 +325,9 @@ def compute_images_and_whitening_from_loader(loader, patch_size, seed=0, stride=
 class Net(nn.Module):
     def __init__(self, conv_weight, whitening_operator, minus_whitened_patches_mean, n_patches_hw, spatialsize_convolution, normalize, with_patches=True):
         super(Net, self).__init__()
-        self.conv_size = spatialsize_convolution
-        self.n_patches_hw = n_patches_hw
-        self.conv_weight = conv_weight
+        self.conv_size = spatialsize_convolution  # patch size
+        self.n_patches_hw = n_patches_hw  # number of sliding patches in a single row/col
+        self.conv_weight = conv_weight  # the kernel filters
         self.whitening_operator = whitening_operator
         self.minus_whitened_patches_mean = minus_whitened_patches_mean
         self.eps = 1e-16
@@ -382,7 +382,8 @@ class spatialNet(nn.Module):
 
 
 def compute_K_nn_patches(trainloader, net, K_nn, device, seed=0, b_size = 512, image_channels=1):
-    num_centers, n_channels = net.conv_weight.shape[0], net.conv_weight.shape[1]
+    # ipdb.set_trace()
+    num_centers, n_channels = net.conv_weight.shape[0], net.conv_weight.shape[1]  # conv_weight = (256,4,1,1)
     K_nn = min(num_centers, K_nn)
     N = 0
     K_nn_dist = None
@@ -392,11 +393,11 @@ def compute_K_nn_patches(trainloader, net, K_nn, device, seed=0, b_size = 512, i
     patches = 1.*net.conv_weight
     ind_patches = torch.range(0,num_centers-1).long().to(device)
     patches = patches[:,:,0,0]
-    patches  = torch.split(patches,b_size,dim=0)
+    patches = torch.split(patches,b_size,dim=0)
 
     M = 0
     for m ,patch in enumerate(patches):
-        b = patch.size(0)
+        b = patch.size(0)  # batch size = 32
         patch_index = 1*ind_patches[M:M+b]
         patch = patch.reshape(b,image_channels,patch_size,patch_size)
         M += b

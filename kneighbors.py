@@ -25,7 +25,7 @@ from pathlib import Path
 
 print('kneighbors.py')
 parser = argparse.ArgumentParser(
-    'linear classification using patches k nearest neighbors indicators for euclidian metric')
+    'linear classification using patches k nearest neighbors indicators for euclidean metric')
 
 # parameters for the patches
 parser.add_argument('--dataset', help="cifar10/?", default='cifar10')
@@ -341,7 +341,7 @@ class Net(nn.Module):
         out2 = F.avg_pool2d(out2, self.pool_size, stride=self.pool_stride, ceil_mode=True)
         if self.finalsize_avg_pooling > 0:
             out2 = F.adaptive_avg_pool2d(out2, self.finalsize_avg_pooling)
-        return out1, out2
+        return out1, out2  # negative and positive convolutions so that the model is sign invariant
 
 
 """
@@ -566,11 +566,13 @@ x = torch.rand(1, args.input_channels, spatial_size, spatial_size).to(device)
 if torch.cuda.is_available() and not args.learn_patches:
     x = x.half()
 
-out1, out2 = net(x)  # , kernel_convolution, bias_convolution)
+out1, out2 = net(x)  # output after negative and positive convolution followed by pooling
 if args.feat_square:
     out1 = torch.cat([out1, out1 ** 2], dim=1)
     out2 = torch.cat([out2, out1 ** 2], dim=1)
 
+
+# Second convolution layer. This is optional and will only run if args.spatialsize_convolution_2 > 0
 net_2 = None
 if args.spatialsize_convolution_2 > 0:
     def func(x):
@@ -621,7 +623,7 @@ print(f'Net output size: out1 {out1.shape[-3:]} out2 {out2.shape[-3:]}')
 if args.resnet:
     resnet = utils.ResNet(2 * n_channel_convolution).to(device)
     params += list(resnet.parameters())
-    classifier_blocks = [None, None, None, None, None, None]
+    classifier_blocks = [None, None, None, None, None, None]  # batch_norm1, batch_norm2, batch_norm, classifier1, classifier2, classifier
 else:
     classifier_blocks = utils.create_classifier_blocks(out1, out2, args, params, n_classes)
 
@@ -633,9 +635,9 @@ del x, out1, out2
 if torch.cuda.is_available() and not args.no_jit:
     print('optimizing net execution with torch.jit')
     if args.batchsize_net > 0:
-        trial = torch.rand(args.batchsize_net // n_gpus, 3, spatial_size, spatial_size).to(device)
+        trial = torch.rand(args.batchsize_net // n_gpus, args.input_channels, spatial_size, spatial_size).to(device)
     else:
-        trial = torch.rand(args.batchsize // n_gpus, 3, spatial_size, spatial_size).to(device)
+        trial = torch.rand(args.batchsize // n_gpus, args.input_channels, spatial_size, spatial_size).to(device)
     if torch.cuda.is_available() and not args.learn_patches:
         trial = trial.half()
 
@@ -687,7 +689,7 @@ def train(epoch):
                     inputs_batch = inputs[start:end].to(device)
                     outputs.append(net(inputs_batch))
                 outputs1 = torch.cat([out[0] for out in outputs], dim=0)
-                outputs2 = torch.cat([out[1] for out in outputs], dim=0)
+                outputs2 = torch.cat([out[1] for out in outputs], dim=0)  # concatening along the batch dimension
             else:
                 inputs = inputs.to(device)
                 outputs1, outputs2 = net(inputs)
@@ -696,7 +698,7 @@ def train(epoch):
                 outputs1, outputs2 = net_2(torch.cat([outputs1, outputs2], dim=1).float())
 
             if args.feat_square:
-                outputs1 = torch.cat([outputs1, outputs1 ** 2], dim=1)
+                outputs1 = torch.cat([outputs1, outputs1 ** 2], dim=1)  # concatening along the channel dimension
                 outputs2 = torch.cat([outputs2, outputs1 ** 2], dim=1)
 
             if args.resnet:

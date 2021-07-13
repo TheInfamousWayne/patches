@@ -108,13 +108,14 @@ def compute_whitening_from_loader(loader, patch_size, seed=0, stride=1, func=Non
     ##################### Computing Whitening ########################
     ##################################################################
 
-    This part saves the mean and covariance of the whitening operator. the mean and covariance is calculated over the whole dataset.
-    We extract patches from all the images of the dataset to calculate the mean and cov.
+    This part saves the mean and covariance of the whitening operator. the mean and covariance is calculated over the
+    whole dataset.
+    All the patches from all the images of the dataset are then extracted to calculate the mean and cov.
     Cov matrix is saved in its diagonalised form, i.e. the eigen values and the eigen vectors.
 
     All returned objects are numpy arrays.
 
-    NOTE: This just saves the mean and sigma matrix. The lambda hyperparameter of whitening is not used/modified/calculated here.
+    NOTE: This just saves the mean and sigma matrix. The lambda hyperparameter of whitening is not used here.
 
     Reference: https://en.wikipedia.org/wiki/Diagonalizable_matrix#Diagonalization
 
@@ -380,7 +381,7 @@ class BasicBlock(nn.Module):
 
 
 class ResNet(nn.Module):
-    def __init__(self, in_channels, k=2, n=4, num_classes=10):
+    def __init__(self, in_channels, k=2, n=4, num_classes=4):
         super(ResNet, self).__init__()
         self.inplanes = 16 * k
         self.ichannels = 16 * k

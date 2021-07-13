@@ -41,6 +41,7 @@ class Imagenet32(VisionDataset):
         self.images, self.labels = make_dataset(filename, root, class_to_idx)
         assert (len(self.images) == len(self.labels))
         self.data = self.load_data()
+        self.targets = self.labels
 
 
         # # now load the picked numpy arrays

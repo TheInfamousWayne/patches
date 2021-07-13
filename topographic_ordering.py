@@ -1,14 +1,19 @@
-import argparse
-import numpy as np
-import seaborn as sns
+# %%
 
-import torch 
+import argparse
+
+import ipdb
+import numpy as np
+import seaborn_image as isns
+import matplotlib.pyplot as plt
+
+import torch
 import torch.nn as nn
 import torchvision
-#import datasets in torchvision
+# import datasets in torchvision
 import torchvision.datasets as datasets
 
-#import model zoo in torchvision
+# import model zoo in torchvision
 import torchvision.models as models
 import torchvision.transforms as transforms
 import analyze_patches as pa
@@ -19,8 +24,9 @@ import os
 
 # arguments
 class Struct:
-	def __init__(self, **entries):
-		self.__dict__.update(entries)
+    def __init__(self, **entries):
+        self.__dict__.update(entries)
+
 
 if torch.cuda.is_available():
     device = 'cuda'
@@ -28,73 +34,77 @@ if torch.cuda.is_available():
 else:
     device = 'cpu'
 
-args = {'dataset':'cifar10',
-		'no_padding':False,
-		'batchsize':32,
-		'num_workers':4,
-		'padding_mode':'constant',
-		'path_train': str(Path(os.getenv('PATH_TRAIN'))),
-		'path_test': str(Path(os.getenv('PATH_TRAIN'))),
-		'path_save':str(Path(os.getenv('SAVE_DIR'))),
-		'whitening_reg':0.001,
-		'K_nn':100,
-		'numpy_seed':0,
-		'n_channel_convolution':256,
-		'K_min':3,
-		'normalize':True,
-		'device':device,
-		'with_patches':False,
-		'M':10,
-		'min_divisor':1e-8,
-		'space_basis':True,
-		're_whiten':False,
-		'n_image_channels': 3,
-	   }
+args = {'dataset': 'DTD',
+        'no_padding': False,
+        'batchsize': 32,
+        'num_workers': 4,
+        'padding_mode': 'constant',
+        'path_train': str(Path(os.getenv('PATH_TRAIN'))),
+        'path_test': str(Path(os.getenv('PATH_TRAIN'))),
+        'path_save': str(Path(os.getenv('SAVE_DIR'))),
+        'whitening_reg': 0.00001,
+        'K_nn': 100,
+        'numpy_seed': 0,
+        'n_channel_convolution': 256,
+        'K_min': 3,
+        'normalize': True,
+        'device': device,
+        'with_patches': False,
+        'M': 10,
+        'min_divisor': 1e-8,
+        'space_basis': True,
+        're_whiten': False,
+        'n_image_channels': 1,
+        }
 args = Struct(**args)
 
-patch_sizes = [20,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19]
-patch_sizes = [2,3,4,5,6,7,8,9,10]
+patch_sizes = [20, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+patch_sizes = [2, 3, 4, 5, 6, 7, 8, 9, 10]
 
-whitening_regs = np.array([0.00001,0.0001,0.001,0.01,0.1,1.,10.])
+whitening_regs = np.array([0.00001, 0.0001, 0.001, 0.01, 0.1, 1., 10.])
 
 # Getting data loaders
 trainset, testset, trainset_whitening, trainloader, testloader, trainloader_whitening = pa.load_data(args)
 for patch_size in patch_sizes:
-	print(f'Computing K_nn for patch size {patch_size}')
-	net,whitening_eigvals, old_patches,whitening_eigvecs = pa.build_network(trainloader_whitening, args.dataset, args.n_channel_convolution, patch_size , args.whitening_reg, args.normalize, args.numpy_seed,net_type = 'spatialNet', space_basis=args.space_basis, image_channels=args.n_image_channels)
-	K_nn_dist, K_nns = pa.compute_K_nn_patches(trainloader_whitening,net,args.K_nn, args.device, b_size = args.batchsize, image_channels=args.n_image_channels)
-	k_nn_file = os.path.join(args.path_save , 'patches_k_nns_'+str(args.dataset)+'_whitening_reg_'+ str(args.whitening_reg)+'_patchsize_'+str(patch_size)+'.npz')
-	patches = net.conv_weight
-	indicies = pa.compute_topological_order(0,K_nns,args.M)
-	K_nn_dist = K_nn_dist.cpu().numpy()
-	K_nns = K_nns.cpu().numpy()
-	patches = patches[:,:,0,0]
+    print(f'Computing K_nn for patch size {patch_size}')
+    net, whitening_eigvals, old_patches, whitening_eigvecs = pa.build_network(trainloader_whitening, args.dataset,
+                                                                              args.n_channel_convolution, patch_size,
+                                                                              args.whitening_reg, args.normalize,
+                                                                              args.numpy_seed, net_type='spatialNet',
+                                                                              space_basis=args.space_basis,
+                                                                              image_channels=args.n_image_channels)
 
-	if args.re_whiten:
-
-		whitening_eigvecs  = torch.from_numpy(whitening_eigvecs).to(args.device).float()
-		patches = torch.einsum('nk,lk->nl',patches,whitening_eigvecs)
-
-		patch_norm =  torch.norm(patches, dim=1)
-
-		patches = patches / patch_norm.unsqueeze(-1)
+    K_nn_dist, K_nns = pa.compute_K_nn_patches(trainloader_whitening, net, args.K_nn, args.device,
+                                               b_size=args.batchsize, image_channels=args.n_image_channels)
 
 
-	patches = patches.reshape(patches.size(0), args.n_image_channels, patch_size,patch_size)
-	patches = patches.cpu().numpy()
-	
+    k_nn_file = os.path.join(args.path_save, 'patches_k_nns_' + str(args.dataset) + '_whitening_reg_' + str(
+        args.whitening_reg) + '_patchsize_' + str(patch_size) + '.npz')
+    patches = net.conv_weight
+    indicies = pa.compute_topological_order(0, K_nns, args.M)
+    K_nn_dist = K_nn_dist.cpu().numpy()
+    K_nns = K_nns.cpu().numpy()
+    patches = patches[:, :, 0, 0]
 
-	#patches = old_patches
-	
-	image = pa.build_topographical_image(patches, indicies)
+    if args.re_whiten:
+        whitening_eigvecs = torch.from_numpy(whitening_eigvecs).to(args.device).float()
+        patches = torch.einsum('nk,lk->nl', patches, whitening_eigvecs)
 
-	np.savez(k_nn_file, K_nn_dist=K_nn_dist,
-			K_nns=K_nns,  patches= patches, image=image)
-	print(f'K_nn computed and savec in file {k_nn_file}')
+        patch_norm = torch.norm(patches, dim=1)
 
+        patches = patches / patch_norm.unsqueeze(-1)
 
+    patches = patches.reshape(patches.size(0), args.n_image_channels, patch_size, patch_size)
+    patches = patches.cpu().numpy()
 
+    # patches = old_patches
 
+    image = pa.build_topographical_image(patches, indicies)
 
+    plt.imshow(image.transpose(1,2,0), cmap="winter")
 
+    np.savez(k_nn_file, K_nn_dist=K_nn_dist,
+             K_nns=K_nns, patches=patches, image=image)
+    print(f'K_nn computed and savec in file {k_nn_file}')
 
+    plt.show()
