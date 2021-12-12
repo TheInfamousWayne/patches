@@ -23,3 +23,7 @@ def auc_vs_dictionary_size():
                   f'--batch_norm '
                   f'--save_model '
                   f'--save_best_model')
+
+
+if __name__ == "__main__":
+    auc_vs_dictionary_size()
