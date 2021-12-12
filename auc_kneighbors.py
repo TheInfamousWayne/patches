@@ -926,7 +926,7 @@ def get_auc_from_saved_model():
     plot_roc_(outputs, targets)
 
 
-get_auc_from_saved_model()
+
 # ipdb.set_trace()
 
 start_time = time.time()
@@ -976,3 +976,6 @@ if args.summary_file:
     with open(args.summary_file, "a+") as f:
         f.write(
             f'args: {args}, final_train_acc: {train_acc}, final_test_acc: {test_acc}, best_test_acc: {best_test_acc}\n')
+
+
+get_auc_from_saved_model()
