@@ -27,6 +27,8 @@ from imagenet import Imagenet32
 import utils
 
 from pathlib import Path
+import csv
+
 
 print('kneighbors.py')
 parser = argparse.ArgumentParser(
@@ -865,6 +867,7 @@ def compute_auc(pred_vec, truth_vec):  # for binary features
     fp_rate, tp_rate, _ = roc_curve(truth_ints, pred_vec, pos_label=1)
     area = auc(fp_rate, tp_rate)
     return area, fp_rate, tp_rate
+
 def plot_roc_(y_pred, y_true, title=""):
     """
     Take in two vectors (-1,) dimensional, with each item denoting the class that sample belongs to. 
@@ -885,12 +888,28 @@ def plot_roc_(y_pred, y_true, title=""):
     # calculating auc for each class
     legend_str = []
     plt.subplot(111)
+
+    # saving auc to a file
+    dict_to_save = {
+        "dictionary_size": args.n_channel_convolution,
+    }
+
     for i in range(len(true)):
         a, fp, tp = compute_auc(pred[i], true[i])  # "7" for diab
         a = round(a * 100, 2)
         print(f"AUC:{a}")
         plt.plot(fp, tp)  # roc_curve
         legend_str.append(f"FDG {i} | AUC:{a}%")
+
+        dict_to_save[f"fdg_{i}"] = a
+
+    with open('results/auc_vs_dictionary_size.csv', 'a', newline='') as csvfile:
+        # pickle.dump(scores_dict_to_save, f)
+        fieldnames = list(dict_to_save.keys())
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        writer.writerow(dict_to_save)
+
+
     plt.grid(True)
     plt.xlabel("FR Rate [%]")
     plt.ylabel("Recall [%]")
@@ -908,7 +927,7 @@ def get_auc_from_saved_model():
 
 
 get_auc_from_saved_model()
-ipdb.set_trace()
+# ipdb.set_trace()
 
 start_time = time.time()
 best_test_acc, best_epoch = 0, -1
