@@ -15,6 +15,7 @@ jupyter = "*"
 python-dotenv = "*"
 pillow = "==8.2.0"
 seaborn-image = "*"
+gmm-mml = "*"
 
 [dev-packages]
 

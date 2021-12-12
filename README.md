@@ -3,7 +3,7 @@
 
 ## Custom Dataset (Mouse ROIs)
 
-    python kneighbors.py --n_channel_convolution 128 --batchsize 32 --dataset DTD --stride_avg_pooling 3 --spatialsize_avg_pooling 3 --finalsize_avg_pooling 3 --lr_schedule "{0:3e-3,50:3e-4,75:3e-5}" --nepochs 50 --optimizer SGD --bottleneck_dim 128 --padding_mode reflect --kneighbors_fraction 0.4 --convolutional_classifier 6 --whitening_reg 1e-3 --sgd_momentum 0.9 --batch_norm --save_model --save_best_model 
+    python kneighbors.py --n_channel_convolution 2048 --batchsize 128 --dataset DTD --stride_avg_pooling 3 --spatialsize_avg_pooling 5 --finalsize_avg_pooling 6 --lr_schedule "{0:3e-3,50:3e-4,75:3e-5}" --nepochs 80 --optimizer SGD --bottleneck_dim 128 --padding_mode reflect --kneighbors_fraction 0.4 --convolutional_classifier 6 --whitening_reg 1e-3 --sgd_momentum 0.9 --batch_norm --save_model --save_best_model 
 
 
 

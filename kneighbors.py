@@ -1,3 +1,4 @@
+#%%
 import argparse
 import ast
 import hashlib
@@ -5,6 +6,7 @@ import json
 import numpy as np
 import os
 import time
+import ipdb
 
 # For datasets
 from torchvision.datasets import CIFAR10
@@ -112,9 +114,9 @@ print(f'Arguments : {args}')
 learning_rates = ast.literal_eval(args.lr_schedule)
 
 # Extract the parameters
-n_channel_convolution = args.n_channel_convolution
+n_channel_convolution = args.n_channel_convolution  # number of filters
 stride_convolution = args.stride_convolution
-spatialsize_convolution = args.spatialsize_convolution
+spatialsize_convolution = args.spatialsize_convolution  # filter dimension
 stride_avg_pooling = args.stride_avg_pooling
 spatialsize_avg_pooling = args.spatialsize_avg_pooling
 finalsize_avg_pooling = args.finalsize_avg_pooling
@@ -237,12 +239,14 @@ elif args.dataset == 'DTD':
 
 
 def lowestk_heaviside(x, k):
+    """ Vector Quantization with hard-assignment """
     if x.dtype == torch.float16:
         return (x < x.kthvalue(dim=1, k=k + 1, keepdim=True).values).half()
     return (x < x.kthvalue(dim=1, k=k + 1, keepdim=True).values).float()
 
 
 def lowestk_sigmoid(x, k, sigmoid):
+    """ Vector Quantization using Sigmoid """
     if x.dtype == torch.float16:
         return torch.sigmoid((x.kthvalue(dim=1, k=k + 1, keepdim=True).values - x) / sigmoid).half()
     return torch.sigmoid((x.kthvalue(dim=1, k=k + 1, keepdim=True).values - x) / sigmoid).float()
@@ -250,6 +254,13 @@ def lowestk_sigmoid(x, k, sigmoid):
 
 def compute_channel_mean_and_std(loader, net, n_channel_convolution,
                                  kernel_convolution, bias_convolution, n_epochs=1, seed=0):
+
+    """
+    Computers mean and std of Network output layer. The output layer is the conv_pool results after using {d,-d} as filters.
+    Note that it's not flattened yet.
+    """
+
+    # initialize means and std with 0 and load on "device" (cpu/gpu)
     mean1, mean2 = torch.DoubleTensor(n_channel_convolution).fill_(0).to(device), torch.DoubleTensor(
         n_channel_convolution).fill_(0).to(device)
     std1, std2 = torch.DoubleTensor(n_channel_convolution).fill_(0).to(device), torch.DoubleTensor(
@@ -341,7 +352,7 @@ class Net(nn.Module):
         out2 = F.avg_pool2d(out2, self.pool_size, stride=self.pool_stride, ceil_mode=True)
         if self.finalsize_avg_pooling > 0:
             out2 = F.adaptive_avg_pool2d(out2, self.finalsize_avg_pooling)
-        return out1, out2  # negative and positive convolutions so that the model is sign invariant
+        return out1, out2  # negative and positive convolutions so that the model is contrast invariant
 
 
 """
@@ -451,7 +462,7 @@ patches_mean = whitening['patches_mean']  # (16,)
 if args.whitening_reg >= 0:
     # inv_sqrt_eigvals = np.diag(np.power(whitening_eigvals + args.whitening_reg, -1/2))
     inv_sqrt_eigvals = np.diag(1. / np.sqrt(whitening_eigvals + args.whitening_reg))
-    whitening_op = whitening_eigvecs.dot(inv_sqrt_eigvals).astype('float32')  # P @ Λ^(-1/2)
+    whitening_op = whitening_eigvecs.dot(inv_sqrt_eigvals).astype('float32')  # P @ Λ^(-1/2)  # TODO: isn't this the W_pca? For W_zca, we need P @ Λ^(-1/2) @ P.T
     # P * Λ^(-1/2),  P is a row matrix with each element being a column eigen vector.
 
 else:  # without the lambda regularisation

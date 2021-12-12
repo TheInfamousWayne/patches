@@ -210,7 +210,7 @@ def build_network(trainloader_whitening, dataset,  n_channel_convolution,spatial
     patches_mean, whitening_eigvecs, whitening_eigvals = compute_whitening_from_loader(trainloader_whitening, patch_size=spatialsize_convolution, stride=stride)
     all_images = trainloader_whitening.dataset.data
     spatial_size = all_images.shape[2]
-    n_patches_hw = spatial_size - spatialsize_convolution + 1
+    n_patches_hw = spatial_size - spatialsize_convolution + 1  # number of sliding patches in a single row/col
     if whitening_reg >=0:
         inv_sqrt_eigvals = np.diag(1. / np.sqrt(whitening_eigvals + whitening_reg))
         whitening_op = whitening_eigvecs.dot(inv_sqrt_eigvals).astype('float32')
@@ -392,7 +392,7 @@ def compute_K_nn_patches(trainloader, net, K_nn, device, seed=0, b_size = 512, i
     
     patches = 1.*net.conv_weight
     ind_patches = torch.range(0,num_centers-1).long().to(device)
-    patches = patches[:,:,0,0]
+    patches = patches[:,:,0,0]  # TODO: make sure that patches=net.conv_weights are 4 dimensional
     patches = torch.split(patches,b_size,dim=0)
 
     M = 0
@@ -404,10 +404,10 @@ def compute_K_nn_patches(trainloader, net, K_nn, device, seed=0, b_size = 512, i
         dist = net(patch)
         if K_nn_dist is None:
             _, _, N_h, N_w = dist.shape
-            K_nn_dist = 100000*torch.ones([K_nn,num_centers, N_h,N_w]).to(device)     
-            list_indices = torch.range(0,num_centers*N_h*N_w*K_nn-1).view([K_nn,num_centers, N_h, N_w]).long().to(device)
+            K_nn_dist = 100000*torch.ones([K_nn, num_centers, N_h, N_w]).to(device)
+            list_indices = torch.range(0, num_centers*N_h*N_w*K_nn-1).view([K_nn,num_centers, N_h, N_w]).long().to(device)
             K_nns = -1*torch.ones([ num_centers * K_nn*N_h*N_w]).long().to(device)
-            loc_indicies = torch.range(0,N_h*N_w*num_centers-1).view([num_centers, N_h, N_w]).long().to(device)
+            loc_indicies = torch.range(0, N_h*N_w*num_centers-1).view([num_centers, N_h, N_w]).long().to(device)
             loc_indicies = loc_indicies.repeat(K_nn, 1, 1, 1)
         
         tmp_dist = torch.cat([K_nn_dist, dist], dim=0 )

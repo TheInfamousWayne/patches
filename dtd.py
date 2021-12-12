@@ -64,7 +64,7 @@ class DTDDataloader(data.Dataset):
     def load_data(self):
         data = []
         for img in self.images:
-            data.append(np.asarray(Image.open(img)).reshape(1,20,20,1))  # number of images, H, W, C
+            data.append(np.asarray(Image.open(img)).reshape(1,20,20,1))  # number_of_images, H, W, C
 
         return np.concatenate(data, axis=0)
 
