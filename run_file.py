@@ -7,9 +7,9 @@ def auc_vs_dictionary_size():
     for d in dict_size:
         for p in patch_size:
             os.system(
-                f'python auc_kneighbors.py \
-                --n_channel_convolution {d} \
-                --spatialsize_convolution {p} \
+                'python auc_kneighbors.py \
+                --n_channel_convolution %s \
+                --spatialsize_convolution %s \
                 --batchsize 128 \
                 --dataset DTD \
                 --stride_avg_pooling 3 \
@@ -26,7 +26,7 @@ def auc_vs_dictionary_size():
                 --sgd_momentum 0.9 \
                 --batch_norm \
                 --save_model \
-                --save_best_model')
+                --save_best_model' % (d, p))
 
 if __name__ == "__main__":
     auc_vs_dictionary_size()
