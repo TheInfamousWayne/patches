@@ -35,7 +35,7 @@ def make_dataset(txtnames, datadir, class_to_idx):
 
 class DTDDataloader(data.Dataset):
     def __init__(self, path='DTD', transform=None, skip_mouse_id='-1', train=True):
-        classes, class_to_idx = find_classes(os.path.join(path, 'images'))
+        classes, class_to_idx = find_classes(os.path.join(path, 'slices', 'images'))
         self.classes = classes
         self.class_to_idx = class_to_idx
         self.train = train
