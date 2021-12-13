@@ -29,6 +29,9 @@ print('kneighbors.py')
 parser = argparse.ArgumentParser(
     'linear classification using patches k nearest neighbors indicators for euclidean metric')
 
+# parameters for the dataset
+parser.add_argument('--skip_mouse_id', help="the mouse data to skip", default='-1', type=str)
+
 # parameters for the patches
 parser.add_argument('--dataset', help="cifar10/?", default='cifar10')
 parser.add_argument('--no_padding', action='store_true', help='no padding used')
@@ -234,7 +237,8 @@ elif args.dataset == 'DTD':
     spatial_size = 20
     classes, trainset, testset, trainloader, testloader, trainloader_norandom = Dataloder(args.path_train,
                                                                                           spatial_size=spatial_size,
-                                                                                          batchsize=args.batchsize).getloader()
+                                                                                          batchsize=args.batchsize,
+                                                                                          skip_mouse_id=args.skip_mouse_id).getloader()
     n_classes = len(classes)
 
 

@@ -872,7 +872,7 @@ def compute_auc(pred_vec, truth_vec):  # for binary features
     area = auc(fp_rate, tp_rate)
     return area, fp_rate, tp_rate
 
-def plot_roc_(y_pred, y_true, title=""):
+def plot_roc_(y_pred, y_true, title="", mode=None, epoch=None):
     """
     Take in two vectors (-1,) dimensional, with each item denoting the class that sample belongs to. 
     The class labels are converted to one-hot vectors. 
@@ -894,9 +894,7 @@ def plot_roc_(y_pred, y_true, title=""):
     plt.subplot(111)
 
     # saving auc to a file
-    dict_to_save = {
-        "dictionary_size": args.n_channel_convolution,
-    }
+    dict_to_save = {}
 
     for i in range(len(true)):
         a, fp, tp = compute_auc(pred[i], true[i])  # "7" for diab
@@ -907,11 +905,35 @@ def plot_roc_(y_pred, y_true, title=""):
 
         dict_to_save[f"fdg_{i}"] = a
 
-    with open('results/auc_vs_dictionary_size.csv', 'a', newline='') as csvfile:
-        # pickle.dump(scores_dict_to_save, f)
-        fieldnames = list(dict_to_save.keys())
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-        writer.writerow(dict_to_save)
+
+    if mode == "auc_vs_dict_size":
+        # saving auv vs dict size history
+        results_dir = Path(f'{args.spatialsize_convolution}')
+        results_dir.mkdir(parents=True, exist_ok=True)
+
+        dict_to_save["dictionary_size"] = args.n_channel_convolution
+
+        with open(f'{results_dir}/auc_vs_dictionary_size_{args.nepochs}_{args.whitening_reg}.csv', 'a', newline='') as csvfile:
+            # pickle.dump(scores_dict_to_save, f)
+            fieldnames = list(dict_to_save.keys())
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writerow(dict_to_save)
+
+
+    if mode == "auc_vs_epochs":
+        # saving auc vs epochs history
+        results_dir = Path(f'{args.spatialsize_convolution}/{args.n_channel_convolution}')
+        results_dir.mkdir(parents=True, exist_ok=True)
+
+        dict_to_save["epoch"] = epoch
+
+        with open(f'{results_dir}/auc_vs_epochs_{args.whitening_reg}.csv', 'a', newline='') as csvfile:
+            # pickle.dump(scores_dict_to_save, f)
+            fieldnames = list(dict_to_save.keys())
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writerow(dict_to_save)
+
+
 
 
     plt.grid(True)
@@ -921,13 +943,20 @@ def plot_roc_(y_pred, y_true, title=""):
     plt.title(title)
     plt.plot([0, 1], [0, 1], color='#C0C0C0', linewidth=0.6)  # diagonal grid line
     plt.show()
-    plt.savefig(f"./figures/auc_roc.png")
+    plt.savefig(f"./figures/auc_roc_{args.spatialsize_convolution}_{args.n_channel_convolution}_{args.nepochs}.png")
 
 
-def get_auc_from_saved_model():
+def get_auc_from_saved_model(mode, epoch=None):
+    """
+    Saves the AUC vs the required param
+    mode= auc_vs_epochs: saves auc vs epochs
+    mode= auc_vs_dict_size : saves auc vs dict size
+    :param mode:
+    :return:
+    """
     acc, outputs, targets = test(-1, return_targets=True)
     outputs = outputs.argmax(1)
-    plot_roc_(outputs, targets)
+    plot_roc_(outputs, targets, mode=mode, epoch=epoch)
 
 
 
@@ -972,6 +1001,8 @@ for i in range(start_epoch, args.nepochs):
                 })
         torch.save(state, checkpoint_file)
 
+    get_auc_from_saved_model(mode='auc_vs_epochs', epoch=i)
+
 print(f'Best test acc. {best_test_acc} at epoch {best_epoch}/{i}')
 hours = (time.time() - start_time) / 3600
 print(f'Done in {hours:.1f} hours with {n_gpus} GPU')
@@ -982,5 +1013,5 @@ if args.summary_file:
             f'args: {args}, final_train_acc: {train_acc}, final_test_acc: {test_acc}, best_test_acc: {best_test_acc}\n')
 
 
-get_auc_from_saved_model()
+get_auc_from_saved_model(mode='auc_vs_dict_size')
 
