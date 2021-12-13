@@ -25,7 +25,7 @@ def make_dataset(txtnames, datadir, class_to_idx):
         with open(txtname, 'r') as lines:
             for line in lines:
                 classname = line.split('/')[0]
-                _img = os.path.join(datadir, 'images', line.strip())
+                _img = os.path.join(datadir, 'slices', 'images', line.strip())
                 assert os.path.isfile(_img)
                 images.append(_img)
                 labels.append(class_to_idx[classname])
@@ -34,7 +34,7 @@ def make_dataset(txtnames, datadir, class_to_idx):
 
 
 class DTDDataloader(data.Dataset):
-    def __init__(self, path='DTD', transform=None, train=True):
+    def __init__(self, path='DTD', transform=None, skip_mouse_id='-1', train=True):
         classes, class_to_idx = find_classes(os.path.join(path, 'images'))
         self.classes = classes
         self.class_to_idx = class_to_idx
@@ -42,9 +42,13 @@ class DTDDataloader(data.Dataset):
         self.transform = transform
 
         if train:
-            filename = [os.path.join(path, 'labels/train' + SPLIT + '.txt')]
+            filename = [os.path.join(path, 'labels', 'all_mouse_data', 'train' + SPLIT + '.txt')] \
+                if skip_mouse_id == "-1" else \
+                [os.path.join(path, 'labels', f'without_mouse_{skip_mouse_id}', 'train' + SPLIT + '.txt')]
         else:
-            filename = [os.path.join(path, 'labels/test' + SPLIT + '.txt')]
+            filename = [os.path.join(path, 'labels', 'all_mouse_data', 'test' + SPLIT + '.txt')] \
+                if skip_mouse_id == "-1" else \
+                [os.path.join(path, 'labels', f'without_mouse_{skip_mouse_id}', 'test' + SPLIT + '.txt')]
 
         self.images, self.labels = make_dataset(filename, path, class_to_idx)
         assert (len(self.images) == len(self.labels))
@@ -69,7 +73,7 @@ class DTDDataloader(data.Dataset):
         return np.concatenate(data, axis=0)
 
 class Dataloder():
-    def __init__(self, path, spatial_size, batchsize):
+    def __init__(self, path, spatial_size, batchsize, skip_mouse_id):
         normalize = transforms.Normalize(mean=[0.486],
                                          std=[0.229])
 
@@ -95,9 +99,9 @@ class Dataloder():
             normalize,
         ])
 
-        trainset_norandom = DTDDataloader(path, transform_train_norandom, train=True)
-        trainset = DTDDataloader(path, transform_train, train=True)
-        testset = DTDDataloader(path, transform_test, train=False)
+        trainset_norandom = DTDDataloader(path, transform_train_norandom, skip_mouse_id, train=True)
+        trainset = DTDDataloader(path, transform_train, skip_mouse_id, train=True)
+        testset = DTDDataloader(path, transform_test, skip_mouse_id, train=False)
 
         kwargs = {'num_workers': 8, 'pin_memory': True}
         trainloader_norandom = torch.utils.data.DataLoader(trainset_norandom, batch_size=batchsize, shuffle=False, **kwargs)
