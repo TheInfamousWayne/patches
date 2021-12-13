@@ -97,6 +97,11 @@ def get_ground_truth_labels():
 #%%
 def save_slice_image_to_class_folder(standardised_rois, mouse_id, data_parent_folder="all_mouse_data", data_folder="ERC15_2D_data"):
     save_dir = Path(os.getenv("ERC_15_DATA_PATH")).parent / "processed" / data_parent_folder /  data_folder / "images"
+    data_files_for_mouse_id[mouse_id] = {"0": [],
+                                         "1": [],
+                                         "2": [],
+                                         "3": []
+                                         }
     for roi, data in standardised_rois.items():
         if roi in missing_mouse_rois[mouse_id]:
             continue
@@ -107,6 +112,7 @@ def save_slice_image_to_class_folder(standardised_rois, mouse_id, data_parent_fo
             save_path.mkdir(parents=True, exist_ok=True)
             total_existing_items = len(list(save_path.glob('*.png')))
             img.save(f"{save_path}/{total_existing_items + 1}.png")
+            data_files_for_mouse_id[mouse_id][str(label)].append(f'{total_existing_items + 1}.png')
 
 
 #%%
@@ -141,15 +147,18 @@ def get_missing_rois_for_existing_mice():
     return missing_mouse_rois
 
 
-def create_labels_file(data_parent_folder="all_mouse_data", data_folder="ERC15_2D_data"):
+def create_labels_file(data_parent_folder="all_mouse_data", data_folder="ERC15_2D_data", skip_mouse_id=-1):
     """
     Making .txt file with training and test set samples.
     """
     samples = []
-    slice_data_path = Path(os.getenv('ERC_15_DATA_PATH')).parent / "processed" / data_parent_folder /  data_folder / "images"
+    slice_data_path = Path(os.getenv('ERC_15_DATA_PATH')).parent / "processed" / "all_mouse_data" /  "ERC15_2D_data" / "images"
     for class_dir in slice_data_path.glob("*"):
         if os.path.isdir(class_dir):
             for file in class_dir.glob("*.png"):
+                if skip_mouse_id != -1 and \
+                        file.name in data_files_for_mouse_id[skip_mouse_id][str(class_dir.name)]:
+                    continue
                 samples.append(f'{class_dir.name}/{file.name}')
 
     # shuffle and split the dataset
@@ -160,7 +169,7 @@ def create_labels_file(data_parent_folder="all_mouse_data", data_folder="ERC15_2
 
     train_test_ration = 0.8
 
-    labels_dir = slice_data_path.parent / "labels"
+    labels_dir = Path(os.getenv('ERC_15_DATA_PATH')).parent / "processed" / data_parent_folder /  data_folder / "labels"
     labels_dir.mkdir(parents=True, exist_ok=True)
 
     # training data
@@ -213,15 +222,16 @@ def create_leave_one_mouse_data(roi_data_path, missing_mice):
                                                           keys=sorted(list(all_rois.keys())),
                                                           feature_range=(0, 255.0))
 
-                save_slice_image_to_class_folder(standardised_rois, mouse.name,
-                                                 data_parent_folder="leave_one_mouse_data",
-                                                 data_folder=f"without_mouse_{skip_mouse}")
+                # save_slice_image_to_class_folder(standardised_rois, mouse.name,
+                #                                  data_parent_folder="leave_one_mouse_data",
+                #                                  data_folder=f"without_mouse_{skip_mouse}")
                 print(f"Done for {mouse.name}")
                 del standardised_rois
                 del all_rois
 
         create_labels_file(data_parent_folder="leave_one_mouse_data",
-                           data_folder=f"without_mouse_{skip_mouse}")
+                           data_folder=f"without_mouse_{skip_mouse}",
+                           skip_mouse_id=skip_mouse)
 
 #%%
 
@@ -230,6 +240,7 @@ if __name__ == "__main__":
     ground_truth_data = get_ground_truth_labels()
     missing_mice = get_missing_mice()
     missing_mouse_rois = get_missing_rois_for_existing_mice()
+    data_files_for_mouse_id = {}
 
     create_all_mouse_data(roi_data_path, missing_mice)
 
