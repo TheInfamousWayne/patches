@@ -196,7 +196,7 @@ def get_missing_rois_for_existing_mice():
 
 
 
-def write_samples_to_disk(samples, skip_mouse_id, labels_parent_folder="labels", task_name="fdg_uptake_class"):
+def write_samples_to_disk(samples, skipped_samples, skip_mouse_id, labels_parent_folder="labels", task_name="fdg_uptake_class"):
     # shuffle and split the dataset
     samples = np.array(samples)
     np.random.seed(0)
@@ -220,6 +220,11 @@ def write_samples_to_disk(samples, skip_mouse_id, labels_parent_folder="labels",
 
     # test data
     with open(labels_dir / "test.txt", 'w') as f:
+        if type(samples) == np.ndarray:
+            samples = list(samples)
+        if type(skipped_samples) == np.ndarray:
+            skipped_samples = list(skipped_samples)
+        samples += skipped_samples
         f.writelines("%s\n" % s for s in samples[int(total_items * train_test_ration):])
 
     print(f"Task: {task_name}, labels file created!")
@@ -230,16 +235,18 @@ def create_labels_file(skip_mouse_id=-1):
     Making .txt file with training and test set samples for FDG uptake class.
     """
     samples = []
+    skipped_samples = []
     slice_data_path = Path(os.getenv('ERC_15_DATA_PATH')).parent / "processed" / "slices" / "images"
     for class_dir in slice_data_path.glob("*"):
         if os.path.isdir(class_dir):
             for file in class_dir.glob("*.png"):
                 if skip_mouse_id != -1 and \
                         file.name in data_files_for_mouse_id_by_class[skip_mouse_id][str(class_dir.name)]:
-                    continue
-                samples.append(f'{class_dir.name}/{file.name}')
+                    skipped_samples.append(f'{class_dir.name}/{file.name}')
+                else:
+                    samples.append(f'{class_dir.name}/{file.name}')
 
-    write_samples_to_disk(samples, skip_mouse_id)
+    write_samples_to_disk(samples, skipped_samples, skip_mouse_id)
 
 
 
@@ -252,6 +259,7 @@ def create_meta_labels(skip_mouse_id=-1):
 
     def save_for_task(task_name):
         samples = []
+        skipped_samples = []
         for mouse_id, region_dict in data_files_for_mouse_id_by_region.items():
             if skip_mouse_id == mouse_id:
                 continue
@@ -261,9 +269,12 @@ def create_meta_labels(skip_mouse_id=-1):
                     name = f'{classname}/{file}'
                     value = ground_truth_data[mouse_id][region_id].__dict__[task_name]
                     if not np.isnan(value):
-                        samples.append(f'{name} {value}')
+                        if skip_mouse_id == mouse_id:
+                            skipped_samples.append(f'{name} {value}')
+                        else:
+                            samples.append(f'{name} {value}')
 
-        write_samples_to_disk(samples, skip_mouse_id, f"metadata/{task_name}", task_name)
+        write_samples_to_disk(samples, skipped_samples, skip_mouse_id, f"metadata/{task_name}", task_name)
 
 
     tasks = ['weight', 'adjusted_weight', 'meoh', 'protein']
