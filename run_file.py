@@ -2,7 +2,7 @@ import os
 
 
 def auc_vs_dictionary_size():
-    dict_size = [4000, 3500, 3000, 2500, 2000, 1500, 1000, 500, 200, 100, 80, 50, 30, 20, 10]
+    dict_size = [2500, 2000, 1500, 1000, 500, 200, 100, 80, 50, 30, 20, 10]
     patch_size = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
     for d in dict_size:
         for p in patch_size:
@@ -27,6 +27,10 @@ def auc_vs_dictionary_size():
                 --batch_norm \
                 --save_model \
                 --save_best_model' % (d, p))
+
+
+
+
 
 if __name__ == "__main__":
     auc_vs_dictionary_size()

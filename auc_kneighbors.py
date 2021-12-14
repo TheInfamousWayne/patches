@@ -36,6 +36,7 @@ parser = argparse.ArgumentParser(
 
 # parameters for the dataset
 parser.add_argument('--skip_mouse_id', help="the mouse data to skip", default='-1', type=str)
+parser.add_argument('--task_name', help="the training task", default='fdg_uptake_class', type=str)
 
 # parameters for the patches
 parser.add_argument('--dataset', help="cifar10/?", default='cifar10')
@@ -85,6 +86,7 @@ parser.add_argument('--bn_after_bottleneck', action='store_true', help='add batc
 parser.add_argument('--dropout', type=float, default=0., help='dropout after relu')
 parser.add_argument('--feat_square', action='store_true', help='add square features')
 parser.add_argument('--resnet', action='store_true', help='resnet classifier')
+parser.add_argument('--loss_type', default='cross_entropy_loss', help='classifier/regeressor loss function')
 
 # parameters of the optimizer
 parser.add_argument('--batchsize', type=int, default=32)
@@ -243,7 +245,8 @@ elif args.dataset == 'DTD':
     classes, trainset, testset, trainloader, testloader, trainloader_norandom = Dataloder(args.path_train,
                                                                                           spatial_size=spatial_size,
                                                                                           batchsize=args.batchsize,
-                                                                                          skip_mouse_id=args.skip_mouse_id).getloader()
+                                                                                          skip_mouse_id=args.skip_mouse_id,
+                                                                                          task_name=args.task_name).getloader()
     n_classes = len(classes)
 
 
@@ -565,7 +568,11 @@ if args.learn_patches:
     params.append(kernel_convolution)
     params.append(bias_convolution)
 
-criterion = nn.CrossEntropyLoss()
+if args.loss_type == "cross_entropy_loss":
+    criterion = nn.CrossEntropyLoss()
+
+if args.loss_type == "mse":
+    criterion = nn.MSELoss()
 
 k_neighbors = args.kneighbors if args.kneighbors > 0 else int(n_channel_convolution * args.kneighbors_fraction)
 
@@ -825,7 +832,7 @@ def test(epoch, loader=testloader, msg='Test',return_targets=False):
 
 hashname = hashlib.md5(str.encode(json.dumps(vars(args), sort_keys=True))).hexdigest()
 if args.save_model:
-    checkpoint_dir = f'checkpoints/{args.dataset}_{args.n_channel_convolution}patches_{args.spatialsize_convolution}x{args.spatialsize_convolution}/{args.optimizer}_{args.lr_schedule}'
+    checkpoint_dir = f'checkpoints/{args.task_name}/{args.dataset}_{args.n_channel_convolution}patches_{args.spatialsize_convolution}x{args.spatialsize_convolution}/{args.optimizer}_{args.lr_schedule}'
     if not os.path.exists(checkpoint_dir):
         os.makedirs(checkpoint_dir)
     checkpoint_file = os.path.join(checkpoint_dir, f'{hashname}.pth.tar')
@@ -908,7 +915,7 @@ def plot_roc_(y_pred, y_true, title="", mode=None, epoch=None):
 
     if mode == "auc_vs_dict_size":
         # saving auv vs dict size history
-        results_dir = Path(f'{args.spatialsize_convolution}')
+        results_dir = Path(f'results/{args.task_name}/{args.spatialsize_convolution}')
         results_dir.mkdir(parents=True, exist_ok=True)
 
         dict_to_save["dictionary_size"] = args.n_channel_convolution
@@ -922,7 +929,7 @@ def plot_roc_(y_pred, y_true, title="", mode=None, epoch=None):
 
     if mode == "auc_vs_epochs":
         # saving auc vs epochs history
-        results_dir = Path(f'{args.spatialsize_convolution}/{args.n_channel_convolution}')
+        results_dir = Path(f'results/{args.task_name}/{args.spatialsize_convolution}/{args.n_channel_convolution}')
         results_dir.mkdir(parents=True, exist_ok=True)
 
         dict_to_save["epoch"] = epoch
@@ -943,7 +950,7 @@ def plot_roc_(y_pred, y_true, title="", mode=None, epoch=None):
     plt.title(title)
     plt.plot([0, 1], [0, 1], color='#C0C0C0', linewidth=0.6)  # diagonal grid line
     plt.show()
-    plt.savefig(f"./figures/auc_roc_{args.spatialsize_convolution}_{args.n_channel_convolution}_{args.nepochs}.png")
+    plt.savefig(f"./figures/auc_roc_{args.task_name}_{args.spatialsize_convolution}_{args.n_channel_convolution}_{args.nepochs}.png")
 
 
 def get_auc_from_saved_model(mode, epoch=None):

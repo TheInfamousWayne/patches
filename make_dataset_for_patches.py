@@ -58,10 +58,18 @@ class Region():
     region: str
     fdg_uptake: int
     fdg_class: str  # 0-5: 0, 5-10:1, 10-15:2, 15-20:3
+    weight: float = 0
+    adjusted_weight: float = 0
+    meoh: float = 0
+    protein: float = 0
+
 
 
 def get_ground_truth_labels():
-    # def get_ground_truth_labels():
+    """
+    Returns FDG uptake class labels
+    :return:
+    """
     omics_file_path = Path(os.getenv("OMICS_DATA")) / "ERC15_Metabolomi_data_norm.csv"
     metabolomi_data = pd.read_csv(omics_file_path, header=None)
 
@@ -94,14 +102,53 @@ def get_ground_truth_labels():
 
 
 
+def get_extra_information(mouse_regions):
+    """
+    Gets extra information like mouse weight, injected dose, etc. for each mouse for each region
+    :return:
+    """
+    omics_file_path = Path(os.getenv("OMICS_DATA")) / "Metadata.csv"
+    metadata = pd.read_csv(omics_file_path, sep=';')
+
+    def get_float_value(value):
+        if type(value) == str:
+            return float(value.replace(',','.'))
+        return value
+
+    def get_metadata(row):
+        name = row['short Name'].split('/')
+        mouse_id = str(name[0][1:]).zfill(3)
+        region_id = 'r' + str(name[1][1:])
+
+        weight = get_float_value(row['Weight [mg]'])
+        adjusted_weight = get_float_value(row['Adjusted Weights Weight [mg] PROTEOMIC Center'])
+        meoh = get_float_value(row['… µl 85 % MeOH       (6µl MeOH/mg tissue)'])
+        protein = get_float_value(row['Protein [µg/µl]'])
+
+        mouse_regions[mouse_id][region_id].weight = weight
+        mouse_regions[mouse_id][region_id].adjusted_weight = adjusted_weight
+        mouse_regions[mouse_id][region_id].meoh = meoh
+        mouse_regions[mouse_id][region_id].protein = protein
+
+    metadata.apply(lambda x: get_metadata(x), axis=1)
+
+    return mouse_regions
+
+
+
+
 #%%
-def save_slice_image_to_class_folder(standardised_rois, mouse_id, data_parent_folder="all_mouse_data", data_folder="ERC15_2D_data"):
+def save_slice_image_to_class_folder(standardised_rois, mouse_id):
     save_dir = Path(os.getenv("ERC_15_DATA_PATH")).parent / "processed" / "slices" / "images"
-    data_files_for_mouse_id[mouse_id] = {"0": [],
-                                         "1": [],
-                                         "2": [],
-                                         "3": []
-                                         }
+
+    data_files_for_mouse_id_by_class[mouse_id] = {"0": [],
+                                                  "1": [],
+                                                  "2": [],
+                                                  "3": []
+                                                  }
+
+    data_files_for_mouse_id_by_region[mouse_id] = {k: [] for k in ground_truth_data[mouse_id].keys()}
+
     for roi, data in standardised_rois.items():
         if roi in missing_mouse_rois[mouse_id]:
             continue
@@ -112,7 +159,8 @@ def save_slice_image_to_class_folder(standardised_rois, mouse_id, data_parent_fo
             save_path.mkdir(parents=True, exist_ok=True)
             total_existing_items = len(list(save_path.glob('*.png')))
             img.save(f"{save_path}/{total_existing_items + 1}.png")
-            data_files_for_mouse_id[mouse_id][str(label)].append(f'{total_existing_items + 1}.png')
+            data_files_for_mouse_id_by_class[mouse_id][str(label)].append(f'{total_existing_items + 1}.png')
+            data_files_for_mouse_id_by_region[mouse_id][roi].append(f'{total_existing_items + 1}.png')
 
 
 #%%
@@ -147,22 +195,11 @@ def get_missing_rois_for_existing_mice():
     return missing_mouse_rois
 
 
-def create_labels_file(skip_mouse_id=-1):
-    """
-    Making .txt file with training and test set samples.
-    """
-    samples = []
-    slice_data_path = Path(os.getenv('ERC_15_DATA_PATH')).parent / "processed" / "slices" / "images"
-    for class_dir in slice_data_path.glob("*"):
-        if os.path.isdir(class_dir):
-            for file in class_dir.glob("*.png"):
-                if skip_mouse_id != -1 and \
-                        file.name in data_files_for_mouse_id[skip_mouse_id][str(class_dir.name)]:
-                    continue
-                samples.append(f'{class_dir.name}/{file.name}')
 
+def write_samples_to_disk(samples, skip_mouse_id, labels_parent_folder="labels", task_name="fdg_uptake_class"):
     # shuffle and split the dataset
     samples = np.array(samples)
+    np.random.seed(0)
     np.random.shuffle(samples)
 
     total_items = samples.shape[0]
@@ -174,7 +211,7 @@ def create_labels_file(skip_mouse_id=-1):
     else:
         labels_dir_name = f"without_mouse_{skip_mouse_id}"
 
-    labels_dir = Path(os.getenv('ERC_15_DATA_PATH')).parent / "processed" / "labels" / labels_dir_name
+    labels_dir = Path(os.getenv('ERC_15_DATA_PATH')).parent / "processed" / labels_parent_folder / labels_dir_name
     labels_dir.mkdir(parents=True, exist_ok=True)
 
     # training data
@@ -185,7 +222,53 @@ def create_labels_file(skip_mouse_id=-1):
     with open(labels_dir / "test.txt", 'w') as f:
         f.writelines("%s\n" % s for s in samples[int(total_items * train_test_ration):])
 
-    print("labels file created!")
+    print(f"Task: {task_name}, labels file created!")
+
+
+def create_labels_file(skip_mouse_id=-1):
+    """
+    Making .txt file with training and test set samples for FDG uptake class.
+    """
+    samples = []
+    slice_data_path = Path(os.getenv('ERC_15_DATA_PATH')).parent / "processed" / "slices" / "images"
+    for class_dir in slice_data_path.glob("*"):
+        if os.path.isdir(class_dir):
+            for file in class_dir.glob("*.png"):
+                if skip_mouse_id != -1 and \
+                        file.name in data_files_for_mouse_id_by_class[skip_mouse_id][str(class_dir.name)]:
+                    continue
+                samples.append(f'{class_dir.name}/{file.name}')
+
+    write_samples_to_disk(samples, skip_mouse_id)
+
+
+
+def create_meta_labels(skip_mouse_id=-1):
+    """
+    Takes ground_truth_labels containing metadata for each mouse for each region and data_files_for_mouse_id information
+    and creates train and test .txt files
+    :return:
+    """
+
+    def save_for_task(task_name):
+        samples = []
+        for mouse_id, region_dict in data_files_for_mouse_id_by_region.items():
+            if skip_mouse_id == mouse_id:
+                continue
+            for region_id, files in region_dict.items():
+                for file in files:
+                    classname = ground_truth_data[mouse_id][region_id].fdg_class
+                    name = f'{classname}/{file}'
+                    value = ground_truth_data[mouse_id][region_id].__dict__[task_name]
+                    if not np.isnan(value):
+                        samples.append(f'{name} {value}')
+
+        write_samples_to_disk(samples, skip_mouse_id, f"metadata/{task_name}", task_name)
+
+
+    tasks = ['weight', 'adjusted_weight', 'meoh', 'protein']
+    for task in tasks:
+        save_for_task(task)
 
 
 
@@ -204,6 +287,7 @@ def create_all_mouse_data(roi_data_path, missing_mice):
             del all_rois
 
     create_labels_file()
+    create_meta_labels()
 
 
 def create_leave_one_mouse_data(roi_data_path, missing_mice):
@@ -235,15 +319,18 @@ def create_leave_one_mouse_data(roi_data_path, missing_mice):
                 del all_rois
 
         create_labels_file(skip_mouse_id=skip_mouse)
+        create_meta_labels(skip_mouse_id=skip_mouse)
 
 #%%
 
 if __name__ == "__main__":
     roi_data_path = Path(os.getenv('ERC_15_DATA_PATH')) / "ERC15_nifti_rois"
-    ground_truth_data = get_ground_truth_labels()
+    ground_truth_data = get_ground_truth_labels()  # fdg class labels
+    ground_truth_data = get_extra_information(ground_truth_data)  # metadata
     missing_mice = get_missing_mice()
     missing_mouse_rois = get_missing_rois_for_existing_mice()
-    data_files_for_mouse_id = {}
+    data_files_for_mouse_id_by_class = {}
+    data_files_for_mouse_id_by_region = {}
 
     create_all_mouse_data(roi_data_path, missing_mice)
 
