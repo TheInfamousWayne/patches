@@ -261,8 +261,6 @@ def create_meta_labels(skip_mouse_id=-1):
         samples = []
         skipped_samples = []
         for mouse_id, region_dict in data_files_for_mouse_id_by_region.items():
-            if skip_mouse_id == mouse_id:
-                continue
             for region_id, files in region_dict.items():
                 for file in files:
                     classname = ground_truth_data[mouse_id][region_id].fdg_class
