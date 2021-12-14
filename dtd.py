@@ -26,8 +26,8 @@ def make_dataset(txtnames, datadir, class_to_idx, task_name):
             return class_to_idx[classname]
 
         else:
-            l = float(line.split(' ')[-1])
-            return float
+            l = float(line.split(' ')[-1].strip())
+            return l
 
     images = []
     labels = []
@@ -49,7 +49,7 @@ class DTDDataloader(data.Dataset):
         if task_name == "fdg_uptake_class":
             self.classes = classes
         else:
-            self.classes = 1
+            self.classes = [1]
         self.class_to_idx = class_to_idx
         self.train = train
         self.transform = transform

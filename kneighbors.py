@@ -805,6 +805,7 @@ def test(epoch, loader=testloader, msg='Test'):
             outputs_list.append(outputs)
 
             test_loss += loss.item()
+
             cor_top1, cor_top5 = utils.correct_topk(outputs, targets, topk=(1, 3))
             correct_top1 += cor_top1
             correct_top5 += cor_top5

@@ -3,9 +3,13 @@
 
 ## Custom Dataset (Mouse ROIs)
 
-    python kneighbors.py --n_channel_convolution 2048 --batchsize 128 --dataset DTD --stride_avg_pooling 3 --spatialsize_avg_pooling 5 --finalsize_avg_pooling 6 --lr_schedule "{0:3e-3,50:3e-4,75:3e-5}" --nepochs 80 --optimizer SGD --bottleneck_dim 128 --padding_mode reflect --kneighbors_fraction 0.4 --convolutional_classifier 6 --whitening_reg 1e-3 --sgd_momentum 0.9 --batch_norm --save_model --save_best_model 
+    python auc_kneighbors.py --n_channel_convolution 2048 --batchsize 128 --dataset DTD --stride_avg_pooling 3 --spatialsize_avg_pooling 5 --finalsize_avg_pooling 6 --lr_schedule "{0:3e-3,50:3e-4,75:3e-5}" --nepochs 80 --optimizer SGD --bottleneck_dim 128 --padding_mode reflect --kneighbors_fraction 0.4 --convolutional_classifier 6 --whitening_reg 1e-3 --sgd_momentum 0.9 --batch_norm --save_model --save_best_model 
 
+    python auc_kneighbors.py --task_name "adjusted_weight" --loss_type "mse" --n_channel_convolution 2048 --batchsize 16 --dataset DTD --stride_avg_pooling 3 --spatialsize_avg_pooling 5 --finalsize_avg_pooling 6 --lr_schedule "{0:3e-3,50:3e-4,75:3e-5}" --nepochs 80 --optimizer SGD --bottleneck_dim 8 --padding_mode reflect --kneighbors_fraction 0.4 --convolutional_classifier 4 --whitening_reg 1e-1 --sgd_momentum 0.9 --batch_norm --save_model --save_best_model --relu_after_bottleneck --batch_norm --bn_after_bottleneck
 
+    python auc_kneighbors.py --task_name "adjusted_weight" --loss_type "mse" --n_channel_convolution 2048 --batchsize 64 --dataset DTD --stride_avg_pooling 3 --spatialsize_avg_pooling 5 --finalsize_avg_pooling 6 --lr_schedule "{0:3e-3,50:3e-4,75:3e-5}" --nepochs 80 --optimizer SGD --bottleneck_dim 32 --padding_mode reflect --kneighbors_fraction 0.4 --convolutional_classifier 6 --whitening_reg 1e-1 --sgd_momentum 0.9 --batch_norm --save_model --save_best_model --relu_after_bottleneck  --bn_after_bottleneck --verbose
+
+--batch_norm is optional for metadata task. We have noticed that a large batch size results in loss explosion and eventually nan results.
 
 ## CIFAR 10
 

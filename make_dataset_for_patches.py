@@ -14,6 +14,7 @@ import pandas as pd
 from dataclasses import dataclass
 from dotenv import load_dotenv
 from PIL import Image
+import utils as U
 load_dotenv()
 
 #%%
@@ -62,6 +63,12 @@ class Region():
     adjusted_weight: float = 0
     meoh: float = 0
     protein: float = 0
+    m_alpha_aaa: float = 0
+    m_glu: float = 0
+    m_h1: float = 0
+    m_orn: float = 0
+    m_putrescine: float = 0
+    m_taurine: float = 0
 
 
 
@@ -83,6 +90,30 @@ def get_ground_truth_labels():
     part1 = set_row_as_column_header(part1, 0)
     mouse_regions = {}
 
+    part2 = U.FileObject()
+    part2 = part2.file.T
+    part2 = (part2 - part2.min()) / (part2.max() - part2.min())
+
+    def get_metabolite_info(row):
+        name = row.name.split('/')
+        mouse_id = str(name[0][1:]).zfill(3)
+        region_id = 'r' + str(name[1][1:])
+
+        alpha_aaa = float(row['alpha-AAA'])
+        glu = float(row['Glu'])
+        h1 = float(row['H1'])
+        orn = float(row['Orn'])
+        putrescine = float(row['Putrescine'])
+        taurine = float(row['Taurine'])
+
+        mouse_regions[mouse_id][region_id].m_alpha_aaa = alpha_aaa
+        mouse_regions[mouse_id][region_id].m_glu = glu
+        mouse_regions[mouse_id][region_id].m_h1 = h1
+        mouse_regions[mouse_id][region_id].m_orn = orn
+        mouse_regions[mouse_id][region_id].m_putrescine = putrescine
+        mouse_regions[mouse_id][region_id].m_taurine = taurine
+
+
     def get_region_info(row):
         global i
         mapping_dict = {'0--5': 0, '5--10': 1, '10--15': 2, '15--20': 3}
@@ -97,6 +128,7 @@ def get_ground_truth_labels():
                                                         fdg_uptake=int(row[3]))
 
     part1.apply(lambda x: get_region_info(x), axis=0)
+    part2.apply(lambda x: get_metabolite_info(x), axis=1)
 
     return mouse_regions
 
@@ -275,9 +307,11 @@ def create_meta_labels(skip_mouse_id=-1):
         write_samples_to_disk(samples, skipped_samples, skip_mouse_id, f"metadata/{task_name}", task_name)
 
 
-    tasks = ['weight', 'adjusted_weight', 'meoh', 'protein']
+    tasks = ['weight', 'adjusted_weight', 'meoh', 'protein',
+             'm_alpha_aaa', 'm_glu', 'm_h1', 'm_orn', 'm_putrescine', 'm_taurine']
     for task in tasks:
         save_for_task(task)
+
 
 
 

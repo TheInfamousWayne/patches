@@ -3,6 +3,12 @@ import torch
 import scipy.linalg
 import torch.nn as nn
 import torch.nn.functional as F
+import os
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+from pathlib import Path
+import numpy as np
 
 
 if torch.cuda.is_available():
@@ -99,6 +105,7 @@ def correct_topk(output, target, topk=(1,)):
         for k in topk:
             correct_k = correct[:k].float().sum().item()
             res.append(correct_k)
+
     return res
 
 
@@ -247,7 +254,7 @@ def compute_classifier_outputs(outputs1, outputs2, targets, args, batch_norm1, b
 
     outputs = outputs.view(outputs.size(0),-1)
 
-    return outputs, targets
+    return outputs.float(), targets.float()
 
 
 def create_classifier_blocks(out1, out2, args, params, n_classes):
@@ -460,3 +467,171 @@ def compute_features(loader, net, args, flip=False):
             labels.append(targets.cpu().numpy())
     return np.concatenate(features, axis=0), np.concatenate(labels, axis=0)
 
+
+
+
+# %%
+class FileObject(object):
+    def __init__(
+        self,
+        config_file={"split_parts": {},
+                     "use_file": {"file_part": 2},
+                     "plot_fdg_uptake": {},
+                     "remove_lipids": {},
+                     "imputation": {"name": "imputation_1"},
+                    },
+        dir_path=Path(os.getenv("OMICS_DATA")),
+        file_name="ERC15_Metabolomi_data.csv",
+    ):
+        self.df = pd.read_csv(dir_path / file_name, header=None)
+        self.files: list
+        self.file: pd.DataFrame
+        if config_file:
+            self.run_from_config(config_file)
+
+    def split_parts(self):
+        def set_row_as_column_header(df, row=0):
+            df.columns = df.iloc[row]
+            df.drop(df.index[row], inplace=True)
+            df.set_index(df.columns[0], inplace=True)
+            return df
+
+        self.files = [
+            set_row_as_column_header(self.df[:7], 0),
+            set_row_as_column_header(self.df[7:], 0),
+        ]
+
+    def use_file(self, file_part=2):
+        self.file = self.files[file_part - 1]
+
+    def plot_fdg_uptake(self):
+        fig, ax = plt.subplots(1, 2)
+        ax[0].hist(sorted(self.files[0].iloc[2][1:].astype(float)))
+        ax[1].hist(sorted(self.files[0].iloc[3][1:].astype(int)), bins=4)
+
+    def remove_lipids(self, update_all_versions=False):
+        if update_all_versions:
+            self.files[1] = self.files[1][
+                self.files[1]["C: Metabo.Class"] != "acylcarnitines"
+            ]
+            self.files[1] = self.files[1][
+                self.files[1]["C: Metabo.Class"] != "glycerophospholipids"
+            ]
+            self.files[1] = self.files[1][
+                self.files[1]["C: Metabo.Class"] != "sphingolipids"
+            ]
+            self.file = self.files[1]
+        else:
+            self.file = self.file[self.file["C: Metabo.Class"] != "acylcarnitines"]
+            self.file = self.file[
+                self.file["C: Metabo.Class"] != "glycerophospholipids"
+            ]
+            self.file = self.file[self.file["C: Metabo.Class"] != "sphingolipids"]
+
+    def imputation_1(self):
+        """
+        basic imputation by
+            1. dropping rows with all zeros
+            2. replacing 0 with column_min/2
+        :param type: the type of imputation
+        :return:
+        """
+        self.file.drop(columns=["C: Metabo.Class"], inplace=True)
+        self.file = self.file.apply(pd.to_numeric)
+        self.file = self.file[(self.file.T != 0).any()]  # dropping rows with all zeros
+        imputation_dict = {}
+        for c in self.file.columns:  # iterating through the columns
+            min_value = (
+                self.file[c].drop_duplicates().nsmallest(2).iloc[-1]
+            )  # column min (after 0)
+            imputation_dict[c] = {0: min_value / 2}  # replace 0 with min_value/2
+
+        self.file = self.file.replace(imputation_dict)
+
+    def imputaiton_2(self):
+        print("second")
+
+    def imputation(self, name: int, **kwargs):
+        func = getattr(self, name)
+        func(**kwargs)
+
+    def run_from_config(self, config_file):
+        for func_name, kwargs in config_file.items():
+            func = getattr(self, func_name)
+            func(**kwargs)
+
+    def decompose_data(self, algorithm, **kwds):
+        self.data = self.file.T.to_numpy()
+        self.data = algorithm(**kwds).fit_transform(self.data)
+
+    def scatter_plot(self, dimensions=None, uptake=False, title=""):
+        plot_kwds = {"alpha": 0.25, "s": 80, "linewidths": 0}
+        if dimensions is None:
+            dimensions = [0, 1]
+        if not hasattr(self, "classes"):
+            self.fdg_classes()
+        labels = self.classes
+        if uptake and not hasattr(self, "uptake"):
+            self.fdg_uptake()
+
+        palette = sns.color_palette("deep", np.unique(labels).max() + 1)
+        colors = [palette[x] if x >= 0 else (0.0, 0.0, 0.0) for x in labels]
+        fig, ax = plt.subplots(1, 1)
+        ax.scatter(
+            self.data.T[dimensions[0]],
+            self.data.T[dimensions[1]],
+            c=colors,
+            **plot_kwds
+        )
+        for i, l in enumerate(labels):
+            ax.annotate(
+                l,  # this is the text
+                (
+                    self.data[i][dimensions[0]],
+                    self.data[i][dimensions[1]],
+                ),  # this is the point to label
+                textcoords="offset points",  # how to position the text
+                xytext=(0, 5),  # distance from text to points (x,y)
+                ha="center",  # horizontal alignment can be left, right or center
+                fontsize=5,
+            )
+
+            if uptake:
+                ax.annotate(
+                    self.uptake[i],  # this is the text
+                    (
+                        self.data[i][dimensions[0]],
+                        self.data[i][dimensions[1]],
+                    ),  # this is the point to label
+                    textcoords="offset points",  # how to position the text
+                    xytext=(0, -2),  # distance from text to points (x,y)
+                    ha="center",  # horizontal alignment can be left, right or center
+                    fontsize=5,
+                )
+
+        frame = plt.gca()
+        frame.axes.get_xaxis().set_visible(False)
+        frame.axes.get_yaxis().set_visible(False)
+        plt.title(title, fontsize=24)
+
+    def fdg_uptake(self):
+        mouse_region_to_fdg = self.files[0].iloc[4].to_dict()
+        mouse_region_label = list(self.file.T.index)  # mouse/region list
+        # for exact FDG values
+        mouse_region_to_uptake = self.files[0].iloc[3].to_dict()
+        self.uptake = list(map(mouse_region_to_uptake.get, mouse_region_label))
+
+    def fdg_classes(self):
+        # MOUSE/REGION to class (0,1,2,3) dict
+        mouse_region_to_fdg = self.files[0].iloc[4].to_dict()
+        mouse_region_label = list(self.file.T.index)  # mouse/region list
+        classes = list(
+            map(mouse_region_to_fdg.get, mouse_region_label)
+        )  # mouse/region --> FDG classes
+        # unique_classes = list(set(classes))
+        unique_classes = ["0--5", "5--10", "10--15", "15--20"]
+        modified_class_dict = {k: v for v, k in enumerate(unique_classes)}
+        classes = list(
+            map(modified_class_dict.get, classes)
+        )  # FDG uptake classification
+        self.classes = classes

@@ -105,6 +105,7 @@ parser.add_argument('--num_workers', type=int, default=2)
 parser.add_argument('--multigpu', action='store_true')
 parser.add_argument('--no_cudnn', action='store_true', help='disable cuDNN to prevent cuDNN error (slower)')
 parser.add_argument('--no_jit', action='store_true', help='disable torch.jit optimization to prevent error (slower)')
+parser.add_argument('--verbose', action='store_true', help='print training epoch loss per batch')
 
 # reproducibility parameters
 parser.add_argument('--numpy_seed', type=int, default=0)
@@ -737,11 +738,16 @@ def train(epoch):
                                                                 classifier,
                                                                 train=True)
 
+        # ipdb.set_trace()
         loss = criterion(outputs, targets)
         loss.backward()
         optimizer.step()
 
+        if args.verbose:
+            print("training:", epoch, batch_idx, inputs.shape, outputs.shape, targets.shape, loss)
+
         if torch.isnan(loss):
+
             return False, None
         train_loss += loss.item()
         _, predicted = outputs.max(1)
@@ -749,8 +755,19 @@ def train(epoch):
         correct += predicted.eq(targets).sum().item()
 
     train_acc = 100. * correct / total
+
     print('Train, epoch: {}; Loss: {:.2f} | Acc: {:.1f} ; kneighbors_fraction {:.3f}'.format(
         epoch, train_loss / (batch_idx + 1), train_acc, args.kneighbors_fraction))
+
+    loss_log = Path(f"logs/{args.task_name}")
+    loss_log.mkdir(parents=True, exist_ok=True)
+
+    dict_to_save = {'epoch': epoch, 'loss': train_loss / (batch_idx + 1), 'acc': train_acc}
+    with open(f'{loss_log}/train.csv', 'a', newline='') as csvfile:
+        fieldnames = list(dict_to_save.keys())
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        writer.writerow(dict_to_save)
+
     return True, train_acc
 
 
@@ -810,11 +827,22 @@ def test(epoch, loader=testloader, msg='Test',return_targets=False):
             targets_list.append(targets)
 
             test_loss += loss.item()
-            cor_top1, cor_top5 = utils.correct_topk(outputs, targets, topk=(1, 3))
-            correct_top1 += cor_top1
-            correct_top5 += cor_top5
-            _, predicted = outputs.max(1)
-            total += targets.size(0)
+
+            if args.loss_type == "mse":
+                # custom made changes by me
+                topk = (1,)
+                cor_top1 = utils.correct_topk(outputs, targets, topk=topk)  # TODO: understand what this does
+                correct_top1 += cor_top1[0]
+                _, predicted = outputs.max(1)
+                total += targets.size(0)
+
+            else:
+                # original code
+                cor_top1, cor_top5 = utils.correct_topk(outputs, targets, topk=(1,3))  # TODO: understand what this does
+                correct_top1 += cor_top1
+                correct_top5 += cor_top5
+                _, predicted = outputs.max(1)
+                total += targets.size(0)
 
         test_loss /= (batch_idx + 1)
         acc1, acc5 = 100. * correct_top1 / total, 100. * correct_top5 / total
@@ -824,6 +852,16 @@ def test(epoch, loader=testloader, msg='Test',return_targets=False):
 
         outputs = torch.cat(outputs_list, dim=0).cpu()
         targets = torch.cat(targets_list, dim=0).cpu()
+
+        loss_log = Path(f"logs/{args.task_name}")
+        loss_log.mkdir(parents=True, exist_ok=True)
+
+        dict_to_save = {'epoch': epoch, 'loss': test_loss, 'acc': acc1}
+        with open(f'{loss_log}/test.csv', 'a', newline='') as csvfile:
+            fieldnames = list(dict_to_save.keys())
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writerow(dict_to_save)
+
         
         if return_targets:
             return acc1, outputs, targets
@@ -1008,7 +1046,8 @@ for i in range(start_epoch, args.nepochs):
                 })
         torch.save(state, checkpoint_file)
 
-    get_auc_from_saved_model(mode='auc_vs_epochs', epoch=i)
+    if args.loss_type != "mse":
+        get_auc_from_saved_model(mode='auc_vs_epochs', epoch=i)
 
 print(f'Best test acc. {best_test_acc} at epoch {best_epoch}/{i}')
 hours = (time.time() - start_time) / 3600
@@ -1019,6 +1058,6 @@ if args.summary_file:
         f.write(
             f'args: {args}, final_train_acc: {train_acc}, final_test_acc: {test_acc}, best_test_acc: {best_test_acc}\n')
 
-
-get_auc_from_saved_model(mode='auc_vs_dict_size')
+if args.loss_type != "mse":
+    get_auc_from_saved_model(mode='auc_vs_dict_size')
 
