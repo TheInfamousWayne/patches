@@ -759,7 +759,10 @@ def train(epoch):
     print('Train, epoch: {}; Loss: {:.2f} | Acc: {:.1f} ; kneighbors_fraction {:.3f}'.format(
         epoch, train_loss / (batch_idx + 1), train_acc, args.kneighbors_fraction))
 
-    loss_log = Path(f"logs/{args.task_name}")
+    if args.skip_mouse_id == '-1':
+        loss_log = Path(f"logs/{args.task_name}/all_mouse_data")
+    else:
+        loss_log = Path(f"logs/{args.task_name}/without_mouse_{args.skip_mouse_id}")
     loss_log.mkdir(parents=True, exist_ok=True)
 
     dict_to_save = {'epoch': epoch, 'loss': train_loss / (batch_idx + 1), 'acc': train_acc}
@@ -853,7 +856,10 @@ def test(epoch, loader=testloader, msg='Test',return_targets=False):
         outputs = torch.cat(outputs_list, dim=0).cpu()
         targets = torch.cat(targets_list, dim=0).cpu()
 
-        loss_log = Path(f"logs/{args.task_name}")
+        if args.skip_mouse_id == '-1':
+            loss_log = Path(f"logs/{args.task_name}/all_mouse_data")
+        else:
+            loss_log = Path(f"logs/{args.task_name}/without_mouse_{args.skip_mouse_id}")
         loss_log.mkdir(parents=True, exist_ok=True)
 
         dict_to_save = {'epoch': epoch, 'loss': test_loss, 'acc': acc1}
