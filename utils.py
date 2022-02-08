@@ -9,6 +9,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from pathlib import Path
 import numpy as np
+import ipdb
 
 
 if torch.cuda.is_available():
@@ -254,7 +255,8 @@ def compute_classifier_outputs(outputs1, outputs2, targets, args, batch_norm1, b
 
     outputs = outputs.view(outputs.size(0),-1)
 
-    return outputs.float(), targets.float()
+    return outputs, targets  # for fdg_uptake_class
+    return outputs.float(), targets.float()  # for other metadata
 
 
 def create_classifier_blocks(out1, out2, args, params, n_classes):
@@ -469,6 +471,68 @@ def compute_features(loader, net, args, flip=False):
 
 
 
+def calculate_HRank(outputs1, outputs2, targets):
+
+    # get ranks of feature maps
+    batch_item_idx_for_label = {}
+    avg_batch_rank_per_label = {}
+
+    unique_classes = [i.item() for i in targets.unique()]
+    for c in unique_classes:
+        batch_item_idx_for_label[c] = (targets == c).nonzero(as_tuple=True)[0]
+
+    R1 = torch.linalg.matrix_rank(outputs1.float())
+    R2 = torch.linalg.matrix_rank(outputs2.float())
+
+    avg_batch_rank_per_label = {
+        c: [R1[batch_item_idx_for_label[c]].float().mean(0),
+            R2[batch_item_idx_for_label[c]].float().mean(0)]
+        for c in unique_classes}
+
+    return avg_batch_rank_per_label
+
+
+def save_rank_statistics(feature_maps_rank_per_batch):
+    # plot subplot of feature rank statistics for 4 classes
+    plt.clf()
+    plt.cla()
+    pos_filters, neg_filters = {}, {}
+    unique_classes = feature_maps_rank_per_batch[0].keys()
+    for c in unique_classes:
+        rank_for_label = [i[c] for i in feature_maps_rank_per_batch]
+        p, n = zip(*rank_for_label)
+        p = np.array([i.cpu().detach().numpy() for i in p])
+        n = np.array([i.cpu().detach().numpy() for i in n])
+        pos_filters[c] = p
+        neg_filters[c] = n
+
+    # rank statistic for positive filters
+    N = len(unique_classes)
+    fig1, ax1 = plt.subplots(2, 2)
+    for idx, c in enumerate(unique_classes):
+        ax1[idx//2, idx%2].imshow(pos_filters[c], interpolation='nearest', aspect='auto')
+
+    plt.savefig(f"./figures/pos_filter_rank_statistic.png")
+
+    # rank statistic for negative filters
+    plt.clf()
+    plt.cla()
+    fig2, ax2 = plt.subplots(2, 2)
+    for c in unique_classes:
+        ax2[c//2, c%2].imshow(neg_filters[c], interpolation='nearest', aspect='auto')
+
+    plt.savefig(f"./figures/neg_filter_rank_statistic.png")
+
+    # difference between label 0 and label 3 activations
+    plt.clf()
+    plt.cla()
+    fig3, ax3 = plt.subplots(1, 2)
+    ax3[0].imshow(pos_filters[3] - pos_filters[0], interpolation='nearest', aspect='auto')
+    ax3[1].imshow(neg_filters[3] - neg_filters[0], interpolation='nearest', aspect='auto')
+    plt.savefig(f"./figures/difference_rank_statistic.png")
+
+    ipdb.set_trace()
+
 
 # %%
 class FileObject(object):
@@ -635,3 +699,5 @@ class FileObject(object):
             map(modified_class_dict.get, classes)
         )  # FDG uptake classification
         self.classes = classes
+
+

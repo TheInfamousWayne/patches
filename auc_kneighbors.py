@@ -6,7 +6,9 @@ import json
 import numpy as np
 import os
 import time
+import struct
 
+import unique as unique
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.metrics import accuracy_score, roc_curve, auc
 import matplotlib.pyplot as plt
@@ -686,6 +688,15 @@ if args.normalize_net_outputs:
     std2 = torch.from_numpy(mean_std['std2']).to(device)
 
 
+
+from dataclasses import dataclass
+@dataclass
+class Class_Specific_Items:
+    batch_positions: float
+    y: float
+    z: float = 0.0
+
+
 def train(epoch):
     net.train()
     batch_norm1, batch_norm2, batch_norm, classifier1, classifier2, classifier = classifier_blocks
@@ -694,6 +705,8 @@ def train(epoch):
             bn.train()
 
     train_loss, total, correct = 0, 0, 0
+
+    feature_maps_rank_per_batch = []
 
     for batch_idx, (inputs, targets) in enumerate(trainloader):
         if torch.cuda.is_available() and not args.learn_patches:
@@ -712,6 +725,13 @@ def train(epoch):
             else:
                 inputs = inputs.to(device)
                 outputs1, outputs2 = net(inputs)
+
+
+
+            ######## TODO: Add HRank here on outputs1, outputs2
+            avg_batch_rank_per_label = utils.calculate_HRank(outputs1, outputs2, targets)
+            feature_maps_rank_per_batch.append(avg_batch_rank_per_label)
+            ########
 
             if net_2 is not None:
                 outputs1, outputs2 = net_2(torch.cat([outputs1, outputs2], dim=1).float())
@@ -747,7 +767,6 @@ def train(epoch):
             print("training:", epoch, batch_idx, inputs.shape, outputs.shape, targets.shape, loss)
 
         if torch.isnan(loss):
-
             return False, None
         train_loss += loss.item()
         _, predicted = outputs.max(1)
@@ -759,10 +778,7 @@ def train(epoch):
     print('Train, epoch: {}; Loss: {:.2f} | Acc: {:.1f} ; kneighbors_fraction {:.3f}'.format(
         epoch, train_loss / (batch_idx + 1), train_acc, args.kneighbors_fraction))
 
-    if args.skip_mouse_id == '-1':
-        loss_log = Path(f"logs/{args.task_name}/all_mouse_data")
-    else:
-        loss_log = Path(f"logs/{args.task_name}/without_mouse_{args.skip_mouse_id}")
+    loss_log = Path(f"logs/{args.task_name}")
     loss_log.mkdir(parents=True, exist_ok=True)
 
     dict_to_save = {'epoch': epoch, 'loss': train_loss / (batch_idx + 1), 'acc': train_acc}
@@ -770,6 +786,10 @@ def train(epoch):
         fieldnames = list(dict_to_save.keys())
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writerow(dict_to_save)
+
+    ######## Saving Rank Statistics
+    utils.save_rank_statistics(feature_maps_rank_per_batch)
+    ipdb.set_trace()
 
     return True, train_acc
 
@@ -856,10 +876,7 @@ def test(epoch, loader=testloader, msg='Test',return_targets=False):
         outputs = torch.cat(outputs_list, dim=0).cpu()
         targets = torch.cat(targets_list, dim=0).cpu()
 
-        if args.skip_mouse_id == '-1':
-            loss_log = Path(f"logs/{args.task_name}/all_mouse_data")
-        else:
-            loss_log = Path(f"logs/{args.task_name}/without_mouse_{args.skip_mouse_id}")
+        loss_log = Path(f"logs/{args.task_name}")
         loss_log.mkdir(parents=True, exist_ok=True)
 
         dict_to_save = {'epoch': epoch, 'loss': test_loss, 'acc': acc1}
