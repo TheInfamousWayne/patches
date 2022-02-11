@@ -688,15 +688,6 @@ if args.normalize_net_outputs:
     std2 = torch.from_numpy(mean_std['std2']).to(device)
 
 
-
-from dataclasses import dataclass
-@dataclass
-class Class_Specific_Items:
-    batch_positions: float
-    y: float
-    z: float = 0.0
-
-
 def train(epoch):
     net.train()
     batch_norm1, batch_norm2, batch_norm, classifier1, classifier2, classifier = classifier_blocks
@@ -788,8 +779,9 @@ def train(epoch):
         writer.writerow(dict_to_save)
 
     ######## Saving Rank Statistics
-    utils.save_rank_statistics(feature_maps_rank_per_batch)
-    ipdb.set_trace()
+    utils.save_rank_statistics(feature_maps_rank_per_batch, net)
+
+    ######## Saving Rank Statistics
 
     return True, train_acc
 
