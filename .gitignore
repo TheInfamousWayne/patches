@@ -5,5 +5,5 @@ data
 checkpoints
 .idea
 .DS_Store
-results/
 dataset/
+*.log

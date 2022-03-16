@@ -6,7 +6,9 @@ import json
 import numpy as np
 import os
 import time
+import struct
 
+import unique as unique
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.metrics import accuracy_score, roc_curve, auc
 import matplotlib.pyplot as plt
@@ -695,6 +697,8 @@ def train(epoch):
 
     train_loss, total, correct = 0, 0, 0
 
+    feature_maps_rank_per_batch = []
+
     for batch_idx, (inputs, targets) in enumerate(trainloader):
         if torch.cuda.is_available() and not args.learn_patches:
             inputs = inputs.half()
@@ -712,6 +716,13 @@ def train(epoch):
             else:
                 inputs = inputs.to(device)
                 outputs1, outputs2 = net(inputs)
+
+
+
+            ######## TODO: Add HRank here on outputs1, outputs2
+            avg_batch_rank_per_label = utils.calculate_HRank(outputs1, outputs2, targets)
+            feature_maps_rank_per_batch.append(avg_batch_rank_per_label)
+            ########
 
             if net_2 is not None:
                 outputs1, outputs2 = net_2(torch.cat([outputs1, outputs2], dim=1).float())
@@ -747,7 +758,6 @@ def train(epoch):
             print("training:", epoch, batch_idx, inputs.shape, outputs.shape, targets.shape, loss)
 
         if torch.isnan(loss):
-
             return False, None
         train_loss += loss.item()
         _, predicted = outputs.max(1)
@@ -770,6 +780,11 @@ def train(epoch):
         fieldnames = list(dict_to_save.keys())
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writerow(dict_to_save)
+
+    ######## Saving Rank Statistics
+    utils.save_rank_statistics(feature_maps_rank_per_batch, net)
+
+    ######## Saving Rank Statistics
 
     return True, train_acc
 

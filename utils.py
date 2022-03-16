@@ -9,6 +9,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from pathlib import Path
 import numpy as np
+import ipdb
 
 
 if torch.cuda.is_available():
@@ -254,7 +255,8 @@ def compute_classifier_outputs(outputs1, outputs2, targets, args, batch_norm1, b
 
     outputs = outputs.view(outputs.size(0),-1)
 
-    return outputs.float(), targets.float()
+    return outputs, targets  # for fdg_uptake_class
+    return outputs.float(), targets.float()  # for other metadata
 
 
 def create_classifier_blocks(out1, out2, args, params, n_classes):
@@ -357,6 +359,7 @@ def conv3x3(in_planes, out_planes, stride=1):
     return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride,
                     padding=1, bias=False)
 
+
 class BasicBlock(nn.Module):
     def __init__(self, inplanes, planes, stride=1, downsample=None):
         super(BasicBlock, self).__init__()
@@ -431,6 +434,7 @@ class ResNet(nn.Module):
         x = self.fc(x)
         return x
 
+
 def eval_L_rbf(X, Y=None, sig=5.):
     X = np.atleast_2d(X)
     X_norm_sq = np.linalg.norm(X, axis=1)**2
@@ -441,6 +445,7 @@ def eval_L_rbf(X, Y=None, sig=5.):
         Y_norm_sq = np.linalg.norm(Y, axis=1)**2
         pairwise_distance_sq = X_norm_sq[:, np.newaxis] - 2*X.dot(Y.T) + Y_norm_sq[np.newaxis,:]
     return np.exp(-pairwise_distance_sq / sig**2)
+
 
 def compute_features(loader, net, args, flip=False):
     features, labels = [], []
@@ -469,8 +474,129 @@ def compute_features(loader, net, args, flip=False):
 
 
 
+def calculate_HRank(outputs1, outputs2, targets):
 
-# %%
+    # get ranks of feature maps
+    batch_item_idx_for_label = {}
+    avg_batch_rank_per_label = {}
+
+    unique_classes = [i.item() for i in targets.unique()]
+    for c in unique_classes:
+        batch_item_idx_for_label[c] = (targets == c).nonzero(as_tuple=True)[0]
+
+    R1 = torch.linalg.matrix_rank(outputs1.float())
+    R2 = torch.linalg.matrix_rank(outputs2.float())
+
+    avg_batch_rank_per_label = {
+        c: [R1[batch_item_idx_for_label[c]].float().mean(0),
+            R2[batch_item_idx_for_label[c]].float().mean(0)]
+        for c in unique_classes}
+
+    return avg_batch_rank_per_label
+
+
+def save_rank_statistics(feature_maps_rank_per_batch, net):
+    # plot subplot of feature rank statistics for 4 classes
+    plt.clf()
+    plt.cla()
+    pos_filters, neg_filters = {}, {}
+    unique_classes = feature_maps_rank_per_batch[0].keys()
+    for c in unique_classes:
+        rank_for_label = [i[c] for i in feature_maps_rank_per_batch]
+        p, n = zip(*rank_for_label)
+        p = np.array([i.cpu().detach().numpy() for i in p])
+        n = np.array([i.cpu().detach().numpy() for i in n])
+        pos_filters[c] = p
+        neg_filters[c] = n
+
+    sorted_pos_idx_label0 = np.argsort(pos_filters[0].mean(axis=0))
+    sorted_neg_idx_label0 = np.argsort(neg_filters[0].mean(axis=0))
+
+    # rank statistic for positive filters
+    N = len(unique_classes)
+    fig1, ax1 = plt.subplots(2, 2)
+    for idx, c in enumerate(unique_classes):
+        ax1[idx//2, idx%2].imshow(pos_filters[c], interpolation='nearest', aspect='auto')
+
+    plt.savefig(f"./figures/pos_filter_rank_statistic.png")
+
+    # rank statistic for negative filters
+    plt.clf()
+    plt.cla()
+    fig2, ax2 = plt.subplots(2, 2)
+    for c in unique_classes:
+        ax2[c//2, c%2].imshow(neg_filters[c], interpolation='nearest', aspect='auto')
+
+    plt.savefig(f"./figures/neg_filter_rank_statistic.png")
+
+    # difference between label 3 and label 0 activations
+    plt.clf()
+    plt.cla()
+    fig3, ax3 = plt.subplots(1, 2)
+
+    pos_difference = pos_filters[3] - pos_filters[0]
+    neg_difference = neg_filters[3] - neg_filters[0]
+
+    sorted_pos_idx = np.argsort(pos_difference.mean(axis=0))
+    sorted_neg_idx = np.argsort(neg_difference.mean(axis=0))
+
+    sort_flag = True
+    if sort_flag:
+        pos_difference = pos_difference[:, sorted_pos_idx]
+        neg_difference = neg_difference[:, sorted_neg_idx]
+
+    im0 = ax3[0].imshow(pos_difference, interpolation='nearest', aspect='auto', cmap='viridis')
+    plt.colorbar(im0, ax=ax3[0])
+
+    im1 = ax3[1].imshow(neg_difference, interpolation='nearest', aspect='auto', cmap='viridis')
+    plt.colorbar(im1, ax=ax3[1])
+
+    plt.savefig(f"./figures/difference_rank_statistic.png")
+
+    # show filters active in passive regions and active regions
+    pos_filters_for_active_regions = sorted_pos_idx[pos_difference.mean(0) > 3.2]
+    pos_filters_for_passive_regions = sorted_pos_idx[pos_difference.mean(0) < -1]
+
+    neg_filters_for_active_regions = sorted_neg_idx[neg_difference.mean(0) > 3.2]
+    neg_filters_for_passive_regions = sorted_neg_idx[neg_difference.mean(0) < -2.5]
+
+    # display random 25 for each combination
+    plt.cla()
+    plt.clf()
+    fig, ax = plt.subplots(2, 2)
+
+    pos_filters_for_active_regions = net.kernel_convolution[np.random.choice(pos_filters_for_active_regions, 25)]
+    pos_filters_for_passive_regions = net.kernel_convolution[np.random.choice(pos_filters_for_passive_regions, 25)]
+    neg_filters_for_active_regions = net.kernel_convolution[np.random.choice(neg_filters_for_active_regions, 25)]
+    neg_filters_for_passive_regions = net.kernel_convolution[np.random.choice(neg_filters_for_passive_regions, 25)]
+
+    all_filters = [pos_filters_for_active_regions,
+                   pos_filters_for_passive_regions,
+                   neg_filters_for_active_regions,
+                   neg_filters_for_passive_regions]
+
+    def get_concatenated_filter(f):
+        data = np.ones((24, 24))
+        data *= min(f.cpu().numpy().reshape(-1))
+        f = torch.squeeze(f)
+        for i in range(25):
+            # data *= min(f[i].cpu().numpy().reshape(-1))
+            data[i//5*4 + i//5: i//5*4 + 4 + i//5,
+                 i%5*4 + i%5: i%5*4 + 4 + i%5] = f[i].cpu()
+        return data
+
+    for idx, fil in enumerate(all_filters):
+        concatenated_filter = get_concatenated_filter(fil)
+        ax[idx//2, idx%2].imshow(concatenated_filter, interpolation='nearest', aspect='auto')
+
+    plt.savefig("./figures/sample_filters.png")
+
+
+
+
+
+
+#%%
 class FileObject(object):
     def __init__(
         self,
@@ -635,3 +761,5 @@ class FileObject(object):
             map(modified_class_dict.get, classes)
         )  # FDG uptake classification
         self.classes = classes
+
+
